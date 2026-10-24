@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <!-- CSP: 외부 연결을 AI 회사 API 주소로만 제한. 새 AI 회사를 추가하면 connect-src에 주소를 넣으세요. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data: blob:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
-<title>재활계획서&재활평가서 — v3.21.56</title>
+<title>재활계획서&재활평가서 — v3.21.57</title>
 <style>
 :root{--navy:#183348;--blue:#286d87;--line:#d7e0e4;--muted:#647682;--paper:#fff;--bg:#f1f4f5;--amber:#fff2d7;--accent:#f6e1b7;--red:#b24640;--green:#277a6a}
 *{box-sizing:border-box}body{margin:0;font:14px/1.55 "Malgun Gothic","Apple SD Gothic Neo",sans-serif;color:#24343e;background:var(--bg)}button,input,textarea,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:default}h1,h2,h3{line-height:1.3}h1{font-size:21px;margin:0}h2{font-size:19px;margin:0 0 10px}h3{font-size:15px;margin:16px 0 8px}p{margin:7px 0}.shell{max-width:1250px;margin:auto;padding:20px}.hero{background:var(--navy);color:white;border-radius:14px;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;gap:14px}.hero p{margin:4px 0 0;color:#d6e3ea}.badge{border:1px solid #bcd4df;border-radius:20px;padding:6px 11px;font-size:12px;white-space:nowrap}.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:13px 0}.toolbar .grow{flex:1}.btn{border:1px solid #afc3cf;background:white;color:var(--navy);padding:8px 12px;border-radius:7px;font-weight:600}.btn:hover{background:#ebf4f7}.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}.btn.danger{color:var(--red);border-color:#dfb5b0}.btn.small{font-size:12px;padding:5px 9px}.btn.plain{border:0;background:transparent;text-decoration:underline;font-weight:400}.layout{display:grid;grid-template-columns:208px minmax(0,1fr);gap:16px}.nav,.panel{background:white;border:1px solid var(--line);border-radius:12px}.nav{padding:12px;height:max-content;position:sticky;top:16px}.nav button{display:block;width:100%;border:0;border-radius:7px;background:white;padding:11px;text-align:left;font-weight:600;color:#41525e}.nav button.active{color:#134b62;background:#e6f0f4}.panel{padding:22px;min-height:520px}.muted{color:var(--muted);font-size:12px}.alert{background:#fff8e9;border-left:4px solid #c69239;padding:10px 13px;margin:12px 0;border-radius:5px}.info{background:#e9f5f4;border-left:4px solid #479b92;padding:10px 13px;margin:12px 0;border-radius:5px}.pii{background:#fdecea;border-left:4px solid var(--red);padding:10px 13px;margin:12px 0;border-radius:5px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.field{margin:5px 0 11px}.field label{font-size:12px;color:#4b6472;display:block;margin-bottom:4px;font-weight:700}input[type=text],input[type=date],input[type=password],textarea,select{background:#fff;border:1px solid #c4d0d8;border-radius:6px;padding:8px 10px;width:100%;color:#24343e}textarea{min-height:85px;resize:vertical;white-space:pre-wrap}textarea.tiny{min-height:54px}textarea.big{min-height:185px}.unresolved{background:#fff4d6!important;outline:1px dashed #c69239}.tokens{display:flex;gap:6px;flex-wrap:wrap}.token{font-size:12px;color:#215768;background:#e6f1f4;padding:3px 8px;border-radius:20px}.evidence{padding:10px 12px;border:1px solid #d9e4e9;border-radius:8px;margin:10px 0}.evidence p{margin:5px 0}.evidence blockquote{border-left:2px solid #acc4d1;margin:6px 0 0;padding:5px 10px;color:#51656f;white-space:pre-wrap;word-break:break-word;font-size:12px}.paper{background:var(--paper);color:#161616;padding:10px 0}.paper h2{text-align:center;font-size:23px;margin:3px 0 24px;color:#171717}.paper h3{margin-top:23px;color:#151515}.paper table{width:100%;border-collapse:collapse;table-layout:fixed;margin:8px 0 18px}.paper td,.paper th{border:1px solid #535e62;padding:8px;vertical-align:top;overflow-wrap:anywhere}.paper th{background:var(--accent);font-weight:700}.paper td.cream{background:#f9edcc;font-weight:700;text-align:center}.paper .docinput{border:0;box-shadow:none;min-height:50px;padding:2px 4px;border-radius:0;resize:vertical;background:transparent}.paper .docinput:focus{outline:1px solid #3596b0}.print-copy{display:none}.paper td p{margin:5px}.paper td .field{margin:0}.paper .sectiontitle{font-size:16px;font-weight:700;margin-top:22px}.paper .sign{text-align:right;margin:35px 0 20px}.paper .footer{text-align:center;margin-top:30px}.subt{font-weight:700;margin:9px 0 5px}.rowadd{display:flex;justify-content:flex-end;margin:8px 0}.warning{color:#a55328;font-weight:600}.count{font-size:22px;font-weight:700;color:#1c5165}.stat{padding:14px;border:1px solid var(--line);border-radius:8px;background:#fbfcfd}.stat span{display:block;color:var(--muted);font-size:12px}.meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.meta>*{max-width:220px}.footnote{font-size:11px;color:#74848b;margin-top:18px}.checkboxline{display:flex;align-items:center;gap:7px}.checkboxline input{width:auto}.noprint{}
@@ -111,6 +111,37 @@ dialog{border:1px solid #9fb6c2;border-radius:10px;padding:18px;width:min(560px,
 .paper textarea[data-bind^="plan.services."][data-bind$=".resource"],
 .paper textarea[data-bind^="evaluation.participation."][data-bind$=".resource"]{min-height:120px;line-height:1.65}
 
+/* v3.21.57 이전 계획서 불러오기 — 장기목표 필터 · 강점·약점 고르기 */
+.carry-panel{border:1px solid #b9cfd8;border-radius:10px;background:#f7fbfc;margin:0 0 12px}
+.carry-panel>summary{cursor:pointer;padding:10px 13px;color:var(--navy)}
+.carry-panel[open]>summary{border-bottom:1px solid var(--line)}
+.carry-panel:not([open])>summary::after{content:'눌러서 펼치기';margin-left:8px;font-size:11px;color:var(--blue)}
+.carry-flag{display:inline-block;margin-left:8px;font-size:11px;font-weight:700;border-radius:10px;padding:2px 8px;background:#fff2d7;border:1px solid #ecd09a;color:#87611e}
+.carry-body{padding:10px 13px 12px}
+.carry-sec{margin:0 0 12px}
+.carry-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.carry-head .muted{font-size:12px}
+.carry-head .grow{flex:1}
+.carry-head select{width:auto;min-width:118px}
+.carry-head input[type=search]{width:190px}
+.carry-list{display:flex;flex-direction:column;gap:5px;max-height:280px;overflow-y:auto;padding-right:2px}
+.carry-row{display:flex;align-items:flex-start;gap:8px;padding:7px 9px;border:1px solid #d6e1e7;border-radius:8px;background:#fff;cursor:pointer;line-height:1.5}
+.carry-row.on{border-color:#7fb3a3;background:#eef8f4}
+.carry-row input{width:17px;height:17px;margin-top:2px;accent-color:#277a6a;flex:0 0 auto}
+.carry-tag{flex:0 0 auto;font-size:11px;font-weight:700;border-radius:10px;padding:2px 7px;background:#eef5f6;border:1px solid #bdd1d5;color:#25566a;white-space:nowrap}
+.carry-text{flex:1;min-width:0;overflow-wrap:anywhere}
+.carry-meta{flex:0 0 auto;font-size:11px;color:var(--muted);white-space:nowrap}
+.carry-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.carry-chip{font-size:12px;line-height:1.45;border-radius:14px;padding:4px 10px;border:1px solid #c3d3da;background:#fff;color:#2c4552;max-width:100%;text-align:left;overflow-wrap:anywhere}
+.carry-chip:hover{border-color:#7aa5b7;background:#f0f6f8}
+.carry-chip.on{background:#e3f4ec;border-color:#7fb3a3;color:#155f48;font-weight:700}
+.carry-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:10px}
+.carry-msg{font-size:12px;overflow-wrap:anywhere}.carry-msg.ok{color:#16643c;font-weight:700}.carry-msg.err{color:#aa3030;font-weight:700}
+.carry-help{font-size:11px;color:var(--muted);margin:6px 0 0}
+.carry-pend{margin:8px 0 0;font-size:12px;color:#87611e;font-weight:700}
+.factor-chips{margin:4px 0 8px}.factor-chips .muted{font-size:11px}
+@media(max-width:770px){.carry-row{flex-wrap:wrap}.carry-text{flex:1 1 calc(100% - 130px)}.carry-meta{flex:1 1 100%;white-space:normal;padding-left:25px}.carry-head input[type=search]{width:100%}.carry-head select{flex:1}}
+@media print{.carry-panel,.factor-chips{display:none!important}}
 </style>
 </head>
 <body>
