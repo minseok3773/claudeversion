@@ -18,6 +18,26 @@ async function findLatestModel(key,signal){
  const best=pick(/^gemini-(\d+(?:\.\d+)?)-flash-lite$/)||pick(/^gemini-(\d+(?:\.\d+)?)-flash$/);
  return MODEL_RE.test(best)?best:'';
 }
+// v3.21.54: 구글 서버가 과부하(500·503 등)이면 이 키로 쓸 수 있는 다른 정식 Flash-Lite/Flash 모델로 한 번 더 시도한다.
+// 모델 목록은 10분 동안 기억해 요청마다 목록을 다시 받지 않는다.
+let modelCache={at:0,names:[]};
+async function listModels(key,signal){
+ if(modelCache.names.length&&Date.now()-modelCache.at<10*60*1000)return modelCache.names;
+ const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200',{headers:{'x-goog-api-key':key},signal});
+ if(!r.ok)return [];
+ const d=await r.json().catch(()=>null);
+ const names=(Array.isArray(d?.models)?d.models:[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')).map(m=>String(m.name||'').replace(/^models\//,''));
+ modelCache={at:Date.now(),names};return names;
+}
+async function otherModel(key,current,signal){
+ const names=await listModels(key,signal);
+ const rank=re=>names.map(n=>{const mt=re.exec(n);return mt?{n,v:parseFloat(mt[1])}:null}).filter(Boolean).sort((a,b)=>b.v-a.v).map(x=>x.n);
+ const order=[...rank(/^gemini-(\d+(?:\.\d+)?)-flash-lite$/),...rank(/^gemini-(\d+(?:\.\d+)?)-flash$/)];
+ return order.find(n=>n!==current&&MODEL_RE.test(n))||'';
+}
+const busy=s=>s===500||s===502||s===503||s===504;
+// 오류 원인 기록(Vercel Logs에서 확인용). 상담 내용·AI 답변은 남기지 않고 상태 코드와 구글 오류 종류만 남긴다.
+function logFail(info){try{console.error('[gemini]',JSON.stringify(info))}catch{}}
 // 키 문제(만료·차단·잘못된 키)는 관리자가 할 일을 구체적으로 알려 준다.
 const KEY_FIX='Google AI Studio(aistudio.google.com)에서 새 API 키를 만든 뒤, Vercel 프로젝트 Settings → Environment Variables의 GEMINI_API_KEY 값을 새 키로 바꾸고 다시 배포(Redeploy)하세요.';
 function keyProblem(status,data){const t=JSON.stringify(data?.error||{});
@@ -62,7 +82,9 @@ module.exports=async function(req,res){
  let model=autoModel.from===configuredModel&&autoModel.to?autoModel.to:configuredModel;
  const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),55000);
  try{
-  const key=process.env.GEMINI_API_KEY;
+  // v3.21.54: 붙여넣을 때 섞인 공백·줄바꿈·보이지 않는 문자·한글을 뺀다(이런 글자가 있으면 구글에 요청 자체를 보내지 못함).
+  const key=String(process.env.GEMINI_API_KEY||'').replace(/[^\x21-\x7E]/g,'');
+  const t0=Date.now();
   const call=m=>fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(m)+':generateContent',{
    method:'POST',signal:ctrl.signal,
    headers:{'x-goog-api-key':key,'content-type':'application/json'},
@@ -78,8 +100,18 @@ module.exports=async function(req,res){
    const next=await findLatestModel(key,ctrl.signal).catch(()=>'');
    if(next&&next!==model){autoModel={from:configuredModel,to:next};model=next;up=await call(model);data=await up.json().catch(()=>null)}
   }
+  let tried='';
+  if(!up.ok&&busy(up.status)&&Date.now()-t0<20000){
+   const first={status:up.status,google:String(data?.error?.status||'').replace(/[^A-Z_]/g,'').slice(0,40),model};
+   const alt=await otherModel(key,model,ctrl.signal).catch(()=>'');
+   if(alt){tried=alt;const up2=await call(alt);const data2=await up2.json().catch(()=>null);
+    if(up2.ok){logFail({...first,fallback:alt,fallbackOk:true});up=up2;data=data2;model=alt}
+    else logFail({...first,fallback:alt,fallbackStatus:up2.status});/* 다른 모델도 실패하면 처음 오류(과부하)를 그대로 알린다 */}
+  }
   if(!up.ok){
    const status=up.status;
+   const gStatus=String(data?.error?.status||'').replace(/[^A-Z_]/g,'').slice(0,40);
+   logFail({status,google:gStatus,model,fallback:tried||undefined});
    if(status===429){
     const kind=quotaType(status,data),delay=retryAfterSeconds(data,up.headers);
     const message=kind==='daily'
@@ -95,16 +127,26 @@ module.exports=async function(req,res){
    const message=(status===401||status===403)?'관리자에게 Gemini API 키·프로젝트 이용 권한을 확인해 달라고 요청하세요.':
     status===404?'설정된 Gemini 모델에 접근할 수 없습니다. 관리자에게 모델명과 무료 등급 사용 가능 여부를 확인해 달라고 요청하세요.':
     status===400?'AI 모델 설정 또는 입력 형식을 확인해 주세요.':
-    status>=500?'Gemini 서버가 일시적으로 응답하지 않습니다.':'AI 요청을 처리하지 못했습니다.';
+    status>=500?`Gemini 서버가 일시적으로 응답하지 않습니다(구글 응답 ${status}${gStatus?' '+gStatus:''}${status===503?' — 사용자가 많아 과부하':''})${tried?`. 다른 모델(${tried})로도 시도했지만 실패했습니다`:''}. 1~2분 뒤 다시 시도해 주세요.`:'AI 요청을 처리하지 못했습니다.';
    return send(res,status>=500?502:status,{error:{message}});
   }
   const parts=data?.candidates?.[0]?.content?.parts;
   const content=Array.isArray(parts)?parts.filter(x=>typeof x?.text==='string').map(x=>x.text).join(''):'';
   const finish=data?.candidates?.[0]?.finishReason;
-  if(!content.trim())return send(res,502,{error:{message:'Gemini 응답이 비어 있거나 안전성 기준에 의해 생성되지 않았습니다.'}});
+  if(!content.trim()){
+   const block=String(data?.promptFeedback?.blockReason||'').replace(/[^A-Z_]/g,'').slice(0,40),fin=String(finish||'').replace(/[^A-Z_]/g,'').slice(0,40);
+   logFail({status:200,empty:true,block,finish:fin,model});
+   const safety=/SAFETY|BLOCKLIST|PROHIBITED|SPII|RECITATION|IMAGE_SAFETY/.test(block+' '+fin);
+   const why=block?`요청 차단: ${block}`:fin?`종료 사유: ${fin}`:'빈 응답';
+   const message=`Gemini가 답을 만들지 않았습니다(${why}). `+(safety?'상담일지의 일부 표현이 구글 안전 기준에 걸렸을 수 있습니다. 체크한 상담일지를 줄이거나 표현을 바꿔 다시 시도해 주세요.':fin==='MAX_TOKENS'?'답이 길이 제한에 걸렸습니다. 다시 시도해 주세요.':'잠시 뒤 다시 시도해 주세요.');
+   return send(res,safety?422:502,{error:{message}});
+  }
   const u=data?.usageMetadata||{};const usage=(Number.isFinite(u.totalTokenCount)&&u.totalTokenCount>=0)?{input:Number(u.promptTokenCount)||0,output:Number(u.candidatesTokenCount)||0,total:Number(u.totalTokenCount)}:null;
   return send(res,200,{text:content,truncated:finish==='MAX_TOKENS',usage,model});
  }catch(e){
-  return send(res,e?.name==='AbortError'?504:502,{error:{message:e?.name==='AbortError'?'Gemini 응답 시간이 초과되었습니다.':'Gemini 서버에 접속할 수 없습니다.'}});
+  if(e?.name==='AbortError')return send(res,504,{error:{message:'Gemini 응답 시간이 초과되었습니다.'}});
+  const code=String(e?.cause?.code||e?.code||e?.name||'').replace(/[^A-Za-z0-9_]/g,'').slice(0,40);
+  logFail({status:502,fetchError:code});
+  return send(res,502,{error:{message:`Gemini 서버에 접속할 수 없습니다${code?`(${code})`:''}.`+(code==='TypeError'?' Vercel 환경변수 GEMINI_API_KEY 값을 지우고 Google AI Studio의 복사 버튼으로 다시 넣은 뒤 Redeploy 해 주세요.':' 잠시 뒤 다시 시도해 주세요.')}});
  }finally{clearTimeout(timeout)}
 };
