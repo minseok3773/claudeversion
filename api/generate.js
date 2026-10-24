@@ -45,6 +45,7 @@ function keyProblem(status,data){const t=JSON.stringify(data?.error||{});
  if(/blocked|leaked|API_KEY_SERVICE_BLOCKED|unrestricted|standard (?:api )?key/i.test(t))return 'Gemini API 키가 구글에서 차단되었습니다(오래 쓰지 않았거나 제한이 없는 예전 방식의 키). '+KEY_FIX;
  if(status===401||status===403)return 'Gemini API 키에 이 서비스를 쓸 권한이 없습니다. '+KEY_FIX;
  return ''}
+// v3.21.58: 오류마다 기계가 읽는 code를 함께 보낸다(화면 안내·재시도 방식을 code로 정함). 사람이 읽는 message는 그대로 둔다.
 // 개인정보 형식에 따른 자동 차단은 사용하지 않습니다.
 // 개인정보 자동 분류·가상 여부 검사 없음. 외부 AI 데이터 처리 조건을 기관에서 검토해야 합니다.
 
@@ -67,18 +68,18 @@ function retryAfterSeconds(data,headers){
 module.exports=async function(req,res){
  if(req.method!=='POST')return send(res,405,{error:'POST 요청만 허용합니다.'},{Allow:'POST'});
  if(!postSameOrigin(req)||req.headers['x-requested-with']!=='rehab-app')return send(res,403,{error:'허용되지 않은 요청입니다.'});
- if(!envStatus().configured)return send(res,503,{error:{message:'무료 Gemini AI 서버 설정이 완료되지 않았습니다.'}});
- if(!sessionValid(req))return send(res,401,{error:{message:'기관 접속 인증이 필요합니다.'}});
+ if(!envStatus().configured)return send(res,503,{error:{message:'무료 Gemini AI 서버 설정이 완료되지 않았습니다.',code:'SERVER_UNCONFIGURED'}});
+ if(!sessionValid(req))return send(res,401,{error:{message:'기관 접속 인증이 필요합니다.',code:'AUTH_REQUIRED'}});
  const client=String(req.headers['x-forwarded-for']||req.socket?.remoteAddress||'unknown').split(',')[0];
- if(!allowRequest('generate',client,30,60*1000))return send(res,429,{error:{message:'AI 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.',limitKind:'minute'}},{'Retry-After':'60'});
+ if(!allowRequest('generate',client,30,60*1000))return send(res,429,{error:{message:'AI 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.',limitKind:'minute',code:'APP_RATE_LIMIT'}},{'Retry-After':'60'});
  const b=jsonBody(req);
  const system=typeof b?.system==='string'?b.system:'';
  const prompt=typeof b?.prompt==='string'?b.prompt:'';
  const maxTokens=Number(b?.maxTokens);
  if(system.length<10||system.length>4000||prompt.length<10||prompt.length>110000||!Number.isInteger(maxTokens)||maxTokens<100||maxTokens>4500)
-  return send(res,400,{error:{message:'AI 요청 자료의 길이 또는 형식이 올바르지 않습니다.'}});
+  return send(res,400,{error:{message:'AI 요청 자료의 길이 또는 형식이 올바르지 않습니다.',code:'BAD_INPUT'}});
  const configuredModel=(process.env.GEMINI_MODEL||DEFAULT_MODEL).trim();
- if(!MODEL_RE.test(configuredModel))return send(res,503,{error:{message:'Gemini 모델 설정이 올바르지 않습니다.'}});
+ if(!MODEL_RE.test(configuredModel))return send(res,503,{error:{message:'Gemini 모델 설정이 올바르지 않습니다.',code:'MODEL_CONFIG_ERROR'}});
  let model=autoModel.from===configuredModel&&autoModel.to?autoModel.to:configuredModel;
  const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),55000);
  try{
@@ -120,15 +121,16 @@ module.exports=async function(req,res){
        ?'Gemini 분당 요청·토큰 한도에 도달했습니다. 잠시 뒤 재시도해 주세요.'
        :'Gemini 무료 사용량 또는 요청 속도 제한에 도달했습니다. 잠시 후 다시 시도하거나 일일 한도 초기화를 기다려 주세요.';
     const extra=delay?{'Retry-After':String(delay)}:{};
-    return send(res,429,{error:{message,limitKind:kind}},extra);
+    return send(res,429,{error:{message,limitKind:kind,code:'QUOTA_LIMIT'}},extra);
    }
    const kp=keyProblem(status,data);
-   if(kp)return send(res,401,{error:{message:kp,keyProblem:true}});
+   if(kp)return send(res,401,{error:{message:kp,keyProblem:true,code:'KEY_PROBLEM'}});
    const message=(status===401||status===403)?'관리자에게 Gemini API 키·프로젝트 이용 권한을 확인해 달라고 요청하세요.':
     status===404?'설정된 Gemini 모델에 접근할 수 없습니다. 관리자에게 모델명과 무료 등급 사용 가능 여부를 확인해 달라고 요청하세요.':
     status===400?'AI 모델 설정 또는 입력 형식을 확인해 주세요.':
     status>=500?`Gemini 서버가 일시적으로 응답하지 않습니다(구글 응답 ${status}${gStatus?' '+gStatus:''}${status===503?' — 사용자가 많아 과부하':''})${tried?`. 다른 모델(${tried})로도 시도했지만 실패했습니다`:''}. 1~2분 뒤 다시 시도해 주세요.`:'AI 요청을 처리하지 못했습니다.';
-   return send(res,status>=500?502:status,{error:{message}});
+   const code=status>=500?'UPSTREAM_SERVICE_ERROR':status===404?'MODEL_NOT_FOUND':status===400?'UPSTREAM_BAD_REQUEST':'UPSTREAM_REQUEST_ERROR';
+   return send(res,status>=500?502:status,{error:{message,code,...(status>=500?{providerStatus:status}:{})}});
   }
   const parts=data?.candidates?.[0]?.content?.parts;
   const content=Array.isArray(parts)?parts.filter(x=>typeof x?.text==='string').map(x=>x.text).join(''):'';
@@ -139,14 +141,14 @@ module.exports=async function(req,res){
    const safety=/SAFETY|BLOCKLIST|PROHIBITED|SPII|RECITATION|IMAGE_SAFETY/.test(block+' '+fin);
    const why=block?`요청 차단: ${block}`:fin?`종료 사유: ${fin}`:'빈 응답';
    const message=`Gemini가 답을 만들지 않았습니다(${why}). `+(safety?'상담일지의 일부 표현이 구글 안전 기준에 걸렸을 수 있습니다. 체크한 상담일지를 줄이거나 표현을 바꿔 다시 시도해 주세요.':fin==='MAX_TOKENS'?'답이 길이 제한에 걸렸습니다. 다시 시도해 주세요.':'잠시 뒤 다시 시도해 주세요.');
-   return send(res,safety?422:502,{error:{message}});
+   return send(res,safety?422:502,{error:{message,code:safety?'SAFETY_BLOCKED':'EMPTY_RESPONSE'}});
   }
   const u=data?.usageMetadata||{};const usage=(Number.isFinite(u.totalTokenCount)&&u.totalTokenCount>=0)?{input:Number(u.promptTokenCount)||0,output:Number(u.candidatesTokenCount)||0,total:Number(u.totalTokenCount)}:null;
   return send(res,200,{text:content,truncated:finish==='MAX_TOKENS',usage,model});
  }catch(e){
-  if(e?.name==='AbortError')return send(res,504,{error:{message:'Gemini 응답 시간이 초과되었습니다.'}});
+  if(e?.name==='AbortError')return send(res,504,{error:{message:'Gemini 응답 시간이 초과되었습니다.',code:'TIMEOUT'}});
   const code=String(e?.cause?.code||e?.code||e?.name||'').replace(/[^A-Za-z0-9_]/g,'').slice(0,40);
   logFail({status:502,fetchError:code});
-  return send(res,502,{error:{message:`Gemini 서버에 접속할 수 없습니다${code?`(${code})`:''}.`+(code==='TypeError'?' Vercel 환경변수 GEMINI_API_KEY 값을 지우고 Google AI Studio의 복사 버튼으로 다시 넣은 뒤 Redeploy 해 주세요.':' 잠시 뒤 다시 시도해 주세요.')}});
+  return send(res,502,{error:{message:`Gemini 서버에 접속할 수 없습니다${code?`(${code})`:''}.`+(code==='TypeError'?' Vercel 환경변수 GEMINI_API_KEY 값을 지우고 Google AI Studio의 복사 버튼으로 다시 넣은 뒤 Redeploy 해 주세요.':' 잠시 뒤 다시 시도해 주세요.'),code:'NETWORK_FAILURE'}});
  }finally{clearTimeout(timeout)}
 };

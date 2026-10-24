@@ -4,6 +4,10 @@
   "functions": {
     "api/generate.js": {
       "maxDuration": 60
+    },
+    "api/pdf-extract.js": {
+      "maxDuration": 30,
+      "includeFiles": "node_modules/pdf-parse/lib/pdf.js/v1.10.100/build/*.js"
     }
   },
   "headers": [
