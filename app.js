@@ -825,8 +825,9 @@ async function proWebSearch(m,topics,{force=false,onStart}={}){const cats=proRea
      sources:(Array.isArray(d.sources)?d.sources:[]).filter(s=>/^https:\/\/[^\s"'<>]+$/i.test(str(s?.uri))).map(s=>({title:str(s.title).slice(0,140)||'출처',uri:str(s.uri)})).slice(0,12),suggestions:str(d.suggestions).slice(0,40000),model:str(d.model).slice(0,60),when:str(d.at)};
     else out={ok:false,why:str(d?.why)||'other',message:d?.searched===false&&clean(d.message)?str(d.message).slice(0,300):(typeof d?.error==='string'&&/[가-힣]/.test(d.error)?d.error.slice(0,300):`구글 검색을 하지 못했습니다(서버 응답 ${r.status}).`)}}
    finally{clearTimeout(timer)}}
-  catch(e){out={ok:false,why:'network',message:e?.name==='AbortError'?'구글 검색 응답이 너무 늦어 기다리지 않았습니다.':'구글 검색 서버에 연결하지 못했습니다.'}}
-  out.at=Date.now();proWeb.set(key,out);return out})();
+  catch(e){const msg=String(e?.message||''),cancel=msg===CANCEL_MSG;
+   out={ok:false,why:e?.name==='AbortError'?'timeout':'network',noCache:cancel,message:e?.name==='AbortError'?'구글 검색 응답이 너무 늦어 기다리지 않았습니다.':cancel?'기관 접속 확인을 취소해 검색하지 않았습니다.':/[가-힣]/.test(msg)?msg.slice(0,300):'구글 검색 서버에 연결하지 못했습니다.'}}
+  out.at=Date.now();if(!out.noCache)proWeb.set(key,out);return out})();
  proWebInflight.set(key,run);proWebBusy=key;try{onStart?.()}catch{}
  try{return await run}finally{proWebInflight.delete(key);if(proWebBusy===key)proWebBusy=''}}
 // 문서마다 자료를 쓰는 법을 다르게 준다(계획서: 개입 방법·성과 기준, 평가서: 판단 기준·다음 계획, 주치의편지: 개입 정리·협력).
