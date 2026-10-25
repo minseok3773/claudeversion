@@ -105,6 +105,7 @@
   <button class="btn" data-act="doctor-save">저장</button><button class="btn" data-act="doctor-register-current" title="지금 편지의 작성 내용을 과거 주치의편지로 등록해 다음 편지의 문체 기준으로 씁니다">과거 편지로 등록</button><button class="btn primary" data-act="doctor-print">인쇄</button></div>
  ${busy?`<div class="ai-progress noprint" role="status"><strong>진행 상태</strong><p id="aiStatus" class="ai-status">${esc(ctx.status||'작성 중…')}</p><div class="toolbar"><button class="btn danger small" data-act="ai-cancel">작성 중단</button></div></div>`:''}
  <p class="muted noprint">상담일지 관리에서 <b>체크한 기록만</b> 근거로 씁니다. 재활계획서·재활평가서·과거 재활문서·다른 회원 자료는 쓰지 않고, 과거 주치의편지에서는 문체 규칙만 가져옵니다(지금 ${ctx.styleCount||0}건). 이름·진단명·입소일 같은 인적사항과 주치의 회신 칸은 AI가 쓰지 않습니다.</p>
+ ${ctx.proHtml||''}
  <div class="paper doctor-paper">
   <section class="doctor-sheet"><h2>${esc(FACILITY.name)} 회원경과보고</h2><div class="doctor-approval">결 재 &nbsp; 담당 __________ &nbsp; 시설장 __________</div>
    <p>선생님께 진료 받을 ( ${nm} ) 회원의 사례관리 현황에 대해 알려드립니다. 지속적인 관심과 조언을 부탁드립니다. 감사합니다.</p>
