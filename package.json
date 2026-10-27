@@ -1,6 +1,6 @@
 {
   "name": "rehab-plan-eval",
-  "version": "3.21.62",
+  "version": "3.21.63",
   "private": true,
   "description": "정신재활시설 재활계획서·재활평가서 작성 도구 (PDF 글자 뽑기용 의존성)",
   "engines": {

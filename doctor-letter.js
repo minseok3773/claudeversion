@@ -6,9 +6,23 @@
  const ROWS=[
   ['diet','일상생활','식습관'],['sleep','일상생활','수면'],['relationships','일상생활','대인관계'],
   ['internal','건강','내과'],['otherMedicine','건강','기타 진료과'],
-  ['obsessive','정신과 증상','강박 행동'],['paranoid','정신과 증상','피해 사고'],['negative','정신과 증상','음성 증상'],
+  ['obsessive','정신과 증상','강박 행동'],['paranoid','정신과 증상','피해 사고'],['negative','정신과 증상','음성 증상'],['mood','정신과 증상','불안·기분 변화'],
   ['hygiene','재활활동','위생 관리'],['health','재활활동','건강 관리'],['programs','재활활동','참여 프로그램']
  ];
+ // v3.21.63: 칸마다 무엇을 쓰는지(AI·규칙 초안 공통 기준). 칸에 끼워 맞추지 않고 증상·내용의 성격으로 칸을 고른다.
+ const ROW_GUIDE=Object.freeze({
+  diet:'식사·간식·음료·커피·체중 관리 같은 먹는 습관',
+  sleep:'잠드는 것·자다 깨는 것·낮잠·기상과 취침 시간',
+  relationships:'동료·직원·이웃 등과의 관계, 갈등·다툼(가족 이야기는 관계 문제가 있을 때만)',
+  internal:'진단되었거나 의심되는 신체 질환(혈압·혈당·당뇨·소화기·호흡기 질환 등)과 내과 진료·검사·약. 불안·긴장·기분 변화와 함께 나타난 가슴 답답함·호흡 불편·떨림·무기력감은 여기가 아니라 불안·기분 변화 칸에 쓴다. 신체 원인 확인이 필요해 보이면 이 칸에는 내과 진료 연계 검토처럼 연계만 쓴다',
+  otherMedicine:'치과·안과·피부과·정형외과 등 내과가 아닌 진료과의 진료·검사',
+  obsessive:'반복 확인·반복해서 씻기처럼 멈추기 어려운 강박 행동과 그에 따른 생각',
+  paranoid:'의심·감시당한다는 생각·피해망상 같은 피해 관련 생각. 환청·환시 같은 다른 정신병적(양성) 증상도 이 칸에 쓰되 무슨 증상인지 밝혀 쓴다',
+  negative:'의욕 저하·무표정·말수 감소·고립·흥미 상실 같은 음성 증상(불안하거나 우울한 기분과는 구분)',
+  mood:'불안·초조·공황·긴장·우울·들뜸·짜증·눈물 같은 기분 증상과, 그와 함께 나타난 신체 증상(가슴 답답함·호흡 불편·떨림·전신 무기력감 등)',
+  hygiene:'씻기·양치·옷 갈아입기·주변 정리',
+  health:'운동·걷기·금연·건강 습관 실천과 건강 관리 활동',
+  programs:'시설 프로그램 참여 모습과 반응'});
  const GRADES=[['rules','시설규칙 준수'],['relations','대인관계'],['daily','일상생활관리'],['impulse','충동 조절'],
   ['symptoms','증상 관리'],['meds','약물복용 및 순응도'],['community','지역사회 적응 능력'],['family','가족의 의사소통']];
  const ATTITUDES=['적극적','소극적','무관심','무단결석'],LEVELS=['상','중','하'];
@@ -142,7 +156,7 @@
   ${hist.length?hist.map(h=>`<section class="evidence"><div class="toolbar"><b>${esc(h.title||'과거 주치의편지')}</b><span class="token">문체 기준</span><span class="grow"></span><button class="btn small danger" data-act="doctor-history-delete" data-id="${esc(h.id)}">삭제</button></div><p class="muted">${esc(h.body.slice(0,150))}${h.body.length>150?'…':''}</p></section>`).join(''):'<p class="muted">이 회원에게 등록된 과거 주치의편지가 없습니다.</p>'}
  </details>`;
  }
- const api={FACILITY,ROWS,GRADES,ATTITUDES,LEVELS,AUTO_KEYS,STAFF_KEYS,DOCTOR_KEYS,MAX_HISTORY,MAX_HISTORY_TEXT,empty,normalize,normalizeHistory,hasDraftContent,applyDraft,styleRules,toHistoryText,fieldUpdate,page};
+ const api={FACILITY,ROWS,ROW_GUIDE,GRADES,ATTITUDES,LEVELS,AUTO_KEYS,STAFF_KEYS,DOCTOR_KEYS,MAX_HISTORY,MAX_HISTORY_TEXT,empty,normalize,normalizeHistory,hasDraftContent,applyDraft,styleRules,toHistoryText,fieldUpdate,page};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;
  if(root)root.DoctorLetter=api;
 })(typeof window!=='undefined'?window:globalThis);
