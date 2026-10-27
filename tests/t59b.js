@@ -1,0 +1,38 @@
+// v3.21.59 — /api/clinical-guidance 서버 함수(가짜 인터넷)
+const {ok,done}=require('./h.js');
+process.env.GEMINI_API_KEY='k'.repeat(30);process.env.APP_ACCESS_CODE='x'.repeat(12);process.env.APP_SESSION_SECRET='s'.repeat(40);
+const shared=require(require('path').resolve(__dirname,'../api/_shared.cjs'));const fn=require(require('path').resolve(__dirname,'../api/clinical-guidance.js'));
+const run=(body,{cookie=true,xrw='rehab-app',origin='https://a.vercel.app',method='POST',ip}={})=>new Promise(resolve=>{const headers={host:'a.vercel.app',origin,'x-requested-with':xrw,'x-forwarded-proto':'https'};if(cookie)headers.cookie=shared.sessionCookie({headers:{},socket:{}}).split(';')[0];
+ const res={statusCode:200,h:{},setHeader(k,v){this.h[k]=v},end(t){resolve({status:this.statusCode,body:JSON.parse(t)})}};fn({method,headers,body,socket:{remoteAddress:ip||('8.8.8.'+Math.floor(Math.random()*250))}},res)});
+const fetched=[];
+global.fetch=async(url,opts)=>{fetched.push(String(url));const u=String(url);
+ if(/cg178/.test(u))return{ok:true,status:200,url:u,headers:{get:k=>k==='content-type'?'text/html; charset=utf-8':null},text:async()=>'<html><head><meta name="description" content="Overview of psychosis and schizophrenia in adults guidance &amp; care."></head></html>'};
+ if(/cg185/.test(u))return{ok:true,status:200,url:'https://evil.example.com/x',headers:{get:()=>'text/html'},text:async()=>'<meta name="description" content="should not be used at all here">'};
+ throw new Error('network down')};
+(async()=>{
+ let r=await run({categories:['psychosis']});
+ ok(r.status===200&&r.body.sources.length===1&&r.body.sources[0].checkedOnline===true&&/Overview of psychosis/.test(r.body.sources[0].overview)&&/& care/.test(r.body.sources[0].overview),'공식 페이지 확인 · 설명 추출',r.body.sources[0]);
+ ok(fetched.length===1&&fetched[0]==='https://www.nice.org.uk/guidance/cg178','정해진 주소만 확인',fetched);
+ r=await run({categories:['psychosis']});ok(fetched.length===1&&r.body.sources[0].checkedOnline,'12시간 동안 다시 확인하지 않음(기억)');
+ r=await run({categories:['bipolar']});ok(r.body.sources[0].checkedOnline===false&&r.body.sources[0].summary.length>20,'다른 사이트로 넘어가면 확인 안 한 것으로(기본 요약)',r.body.sources[0]);
+ r=await run({categories:['ocd']});ok(r.status===200&&r.body.sources[0].checkedOnline===false,'인터넷 오류여도 기본 요약으로 응답');
+ r=await run({categories:['https://evil.example.com','x']});ok(r.status===200&&r.body.sources[0].key==='general','모르는 값은 무시 → 일반 원칙',r.body.sources.map(x=>x.key));
+ ok(!fetched.some(u=>/evil/.test(u)),'사용자가 준 주소는 절대 열지 않음',fetched);
+ r=await run({categories:'psychosis'});ok(r.status===400,'형식 오류');
+ r=await run({categories:['psychosis']},{cookie:false});ok(r.status===401,'접속 인증 필요');
+ r=await run({categories:['psychosis']},{origin:'https://evil.example.com'});ok(r.status===403,'다른 사이트에서 보낸 요청 막음');
+ r=await run({categories:['psychosis']},{method:'GET'});ok(r.status===405,'POST만');
+ let last;for(let i=0;i<21;i++)last=await run({categories:['psychosis']},{ip:'7.7.7.7'});ok(last.status===429,'요청 횟수 제한');
+ console.log('[주제] 상담일지 증상·문제 주제별 전문자료');
+ const K=require(require('path').resolve(__dirname,'../pro-knowledge.js'));
+ global.fetch=async(url)=>{fetched.push(String(url));const u=String(url);if(/samhsa\.gov/.test(u))return{ok:true,status:200,url:u,headers:{get:k=>k==='content-type'?'text/html':null},text:async()=>'<meta property="og:description" content="Illness Management and Recovery kit description text.">'};throw new Error('down')};
+ fetched.length=0;r=await run({categories:[],topics:['meds','money','없는주제']},{ip:'6.6.6.1'});
+ ok(r.status===200&&r.body.sources.length===0&&r.body.topicSources.map(x=>x.key).join()===K.sourcesFor(['meds']).join()&&K.sourcesFor(['meds'])[0]==='samhsa-imr','주제 → 해당 출처만(진단 지침은 안 묻음, v3.21.62 국내 자료 포함)',r.body);
+ ok(r.body.topicSources[0].checkedOnline===true&&/Illness Management/.test(r.body.topicSources[0].overview),'공식 페이지 확인');
+ ok(fetched.length===K.sourcesFor(['meds']).length&&fetched.every(u=>K.sourcesFor(['meds']).some(k=>K.SOURCES[k].url===u)),'목록에 있는 주소만 확인',fetched);
+ r=await run({categories:[],topics:Array.from({length:16},(_,i)=>'meds')},{ip:'6.6.6.2'});ok(r.status===400,'주제가 너무 많으면 막음');
+ r=await run({categories:[],topics:'meds'},{ip:'6.6.6.3'});ok(r.status===400,'형식 오류');
+ r=await run({categories:['psychosis'],topics:['sleep']},{ip:'6.6.6.4'});ok(r.body.sources.length===1&&r.body.topicSources.map(x=>x.key).join()===K.sourcesFor(['sleep']).join()&&K.sourcesFor(['sleep']).includes('kr-insomnia'),'진단 지침과 주제 자료를 함께(국내 불면장애 자료 포함)',r.body.topicSources);
+ ok(Object.values(K.SOURCES).every(x=>K.HOST_RE.test(new URL(x.url).hostname)),'모든 출처가 허용된 사이트');
+ done();
+})().catch(e=>{console.error(e);process.exitCode=1});

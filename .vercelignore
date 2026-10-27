@@ -1,0 +1,3 @@
+# Vercel 사이트에는 올리지 않는 파일(GitHub 자동 검사용)
+tests
+.github

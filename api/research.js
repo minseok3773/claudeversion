@@ -2,8 +2,10 @@
 // v3.21.61: 체크한 상담일지에서 찾은 증상·문제 '주제'(고정 목록 id)와 진단 분류만으로 구글 검색을 해서
 // 정신재활 실천에 참고할 최신 전문자료 요약·검색어·출처를 돌려준다(Gemini의 Google 검색 연동).
 // 회원 이름·상담일지 문장은 받지도, 구글에 보내지도 않는다. 검색을 부탁하는 글은 서버가 고정 목록으로만 만든다.
+// v3.21.66: 구글 검색을 쓸 수 없으면(무료 등급 등) 공개 학술 검색(Europe PMC·Crossref, 무료)으로 최신 논문을 대신 찾는다(_scholarly.cjs).
 const {send,envStatus,postSameOrigin,jsonBody,sessionValid,allowRequest}=require('./_shared.cjs');
 const PRO=require('../pro-knowledge.js');
+const SCHOLARLY=require('./_scholarly.cjs');
 const MODEL_RE=/^gemini-[a-z0-9.-]{4,90}$/;
 const PSY=Object.freeze({psychosis:'조현병 등 정신병적 장애',bipolar:'양극성장애',ocd:'강박장애'});
 // 구글 검색 연동이 되는 모델을 차례로 시도한다.
@@ -11,7 +13,7 @@ const PSY=Object.freeze({psychosis:'조현병 등 정신병적 장애',bipolar:'
 // 3) Gemini 2.5 Flash-Lite·Flash(무료 등급에서도 하루 500회까지 검색되지만, 예전에 이 모델을 써 본 키만 쓸 수 있음)
 function models(){const v=x=>String(x||'').trim();
  return [...new Set([v(process.env.GEMINI_SEARCH_MODEL),v(process.env.GEMINI_MODEL)||'gemini-3.1-flash-lite','gemini-2.5-flash-lite','gemini-2.5-flash'].filter(x=>MODEL_RE.test(x)))]}
-const RESULT_TTL=24*60*60*1000,results=new Map(),down=new Map();
+const RESULT_TTL=24*60*60*1000,SCHOLARLY_TTL=60*60*1000,results=new Map(),down=new Map();
 // 실패한 모델은 잠시 건너뛴다(같은 실패로 매번 기다리지 않게). ‘다시 검색’은 이 기억을 무시하고 다시 시도한다.
 const DOWN_TTL={tier:30*60*1000,model:6*60*60*1000,key:30*60*1000,quota:10*60*1000,busy:5*60*1000,nosearch:30*60*1000,other:10*60*1000};
 const MESSAGES={
@@ -22,6 +24,8 @@ const MESSAGES={
  key:'Gemini API 키에 구글 검색 권한이 없습니다. Google AI Studio에서 키와 결제 상태를 확인해 주세요.',
  nosearch:'AI가 구글 검색을 하지 않고 답해서 그 답은 쓰지 않았습니다. 잠시 뒤 다시 시도해 주세요.',
  other:'구글 검색을 하지 못했습니다. 잠시 뒤 다시 시도해 주세요.'};
+// 공개 논문 검색으로 대신 찾았을 때 앞에 붙이는 짧은 이유
+const FALLBACK_NOTE={tier:'구글 검색은 지금 쓰는 Gemini 무료 등급에서 안 되어',model:'이 API 키로는 구글 검색을 쓸 수 없어',key:'이 API 키로는 구글 검색을 쓸 수 없어',quota:'구글 검색 한도에 도달해',busy:'구글 서버가 바빠',nosearch:'구글 검색이 되지 않아',other:'구글 검색이 되지 않아'};
 function promptFor(topics,cats){
  return ['[자료 조사 요청] 한국 정신재활시설의 정신건강사회복지사가 성인 회원의 재활계획서·재활평가서·주치의 경과보고를 쓸 때 참고할 최신 전문자료를 구글 검색으로 찾아 정리하라.',
   '[진단 분류] '+(cats.length?cats.map(c=>PSY[c]).join(', '):'정하지 않음'),
@@ -79,7 +83,7 @@ module.exports=async function research(req,res){
  const cats=[...new Set(b.categories||[])].filter(x=>has(PSY,x)).slice(0,3);
  if(!topics.length&&!cats.length)return send(res,200,{searched:false,why:'empty',message:'검색할 증상·문제 주제가 없습니다.'});
  const force=b.force===true,ck=[...topics].sort().join(',')+'|'+[...cats].sort().join(','),hit=results.get(ck);
- if(!force&&hit&&Date.now()-hit.at<RESULT_TTL)return send(res,200,{...hit.value,cached:true});
+ if(!force&&hit&&Date.now()-hit.at<(hit.ttl||RESULT_TTL))return send(res,200,{...hit.value,cached:true});
  const key=String(process.env.GEMINI_API_KEY||'').replace(/[^\x21-\x7E]/g,''),prompt=promptFor(topics,cats),tried=[],t0=Date.now();
  for(const model of models()){
   const d=down.get(model);if(!force&&d&&Date.now()<d.until){tried.push({model,reason:d.reason});continue}
@@ -93,5 +97,10 @@ module.exports=async function research(req,res){
   try{console.error('[research]',JSON.stringify({model,reason:r.reason,status:r.status,google:r.detail||undefined}))}catch{}
  }
  const why=['tier','quota','busy','key','model','nosearch','other'].find(x=>tried.some(t=>t.reason===x))||'other';
- return send(res,200,{searched:false,why,message:MESSAGES[why],tried});
+ // v3.21.66: 구글 검색이 안 되면 공개 학술 검색(무료·키 없음)으로 대신 찾는다. 고정 목록의 영어 검색어만 보낸다.
+ if(Date.now()-t0<46000){let sch=null;try{sch=await SCHOLARLY.lookup(topics,cats)}catch{sch=null}
+  if(sch?.ok){const value={searched:true,provider:'scholarly',model:'공개 논문 검색(Europe PMC·Crossref)',topics:topics.map(id=>PRO.byId[id].name),categories:cats.map(c=>PSY[c]),text:sch.text,queries:sch.queries,sources:sch.sources,suggestions:'',at:new Date().toISOString(),
+    fallback:{why,message:FALLBACK_NOTE[why]||FALLBACK_NOTE.other},privacy:'공개 논문 검색에는 고정 목록의 영어 검색어만 씀(회원 정보 없음)'};
+   if(results.size>200)results.clear();results.set(ck,{at:Date.now(),ttl:SCHOLARLY_TTL,value});return send(res,200,value)}}
+ return send(res,200,{searched:false,why,message:MESSAGES[why]+' 공개 논문 검색도 지금은 되지 않았습니다.',tried});
 };
