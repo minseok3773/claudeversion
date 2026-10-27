@@ -52,13 +52,15 @@ function mock({gemini=tierErr,epmc=()=>json(EPMC()),crossref=()=>json(CROSSREF()
   ok(m.every(x=>x.excerpt),'초록 있는 논문만 남음(이번 자료)');
   const t=s.asText(m);ok(/^1\. Social skills training for people with schizophrenia: a randomised trial \(2024, Journal of Imaginary Rehabilitation\)\n   초록 일부: /.test(t)&&t.length<=2400,'AI에 줄 글 형식',t.slice(0,160));
   ok(/초록 없음 — 제목만 참고/.test(s.asText([{title:'A title long enough here',url:'https://doi.org/10.1/x',year:'',journal:'',excerpt:''}])),'초록이 없으면 내용을 짐작하지 말라고 표시');
+  const long=Array.from({length:6},(_,i)=>({title:'Long fictional paper title number '+i+' '+'x'.repeat(150),url:'https://doi.org/10.1000/long.'+i,year:'2025',journal:'Imaginary Journal',excerpt:'y'.repeat(320)}));
+  const f=s.fit(long),txt=s.asText(f);ok(f.length>=3&&f.length<6&&txt.length<=2400&&/y$/.test(txt)&&txt.split('\n').filter(l=>/^\d+\. /.test(l)).length===f.length,'글이 길면 2,400자 안에 다 들어가는 논문까지만(중간에서 자르지 않음)',[f.length,txt.length]);
  }
  console.log('[3] lookup: 두 곳에 영어 검색어만 보내고, 이메일·회원 정보 없음');
  {const s=S();mock();const r=await s.lookup(['social','zzz'],['psychosis']);
   ok(r.ok&&r.records.length===3&&r.sources.length===3,'논문 3건',r);
   ok(calls.length===4&&calls.filter(c=>c.host==='www.ebi.ac.uk').length===2&&calls.filter(c=>c.host==='api.crossref.org').length===2,'검색어 2개 × 두 곳',calls.map(c=>c.host));
   const qs=calls.map(c=>{const u=new URL(c.url);return u.searchParams.get('query')||u.searchParams.get('query.bibliographic')});
-  ok(qs.every(q=>/^(\()?(social skills training schizophrenia|schizophrenia psychosocial rehabilitation)(\) AND HAS_ABSTRACT:y AND PUB_YEAR:\[\d{4} TO \d{4}\])?$/.test(q)),'검색어는 목록의 영어 낱말뿐',qs);
+  ok(qs.every(q=>/^(\()?(social skills training schizophrenia|schizophrenia psychosocial rehabilitation)(\) AND FIRST_PDATE:\[\d{4}-01-01 TO \d{4}-12-31\])?$/.test(q)),'검색어는 목록의 영어 낱말뿐',qs);
   ok(!calls.some(c=>/[가-힣]|@|zzz/.test(decodeURIComponent(c.url)+JSON.stringify(c.opts.headers||{}))),'주소·머리글에 한글·이메일·모르는 값 없음',calls.map(c=>c.url));
   ok(calls.every(c=>c.opts.method==='GET'&&c.opts.redirect==='error'&&c.opts.signal&&!c.opts.body),'GET만, 다른 곳으로 넘겨지지 않게, 시간 제한');
   const cr=new URL(calls.find(c=>c.host==='api.crossref.org').url);ok(/type:journal-article/.test(cr.searchParams.get('filter'))&&/has-abstract:true/.test(cr.searchParams.get('filter')),'Crossref는 초록 있는 학술지 논문만',cr.searchParams.get('filter'));

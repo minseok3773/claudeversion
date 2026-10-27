@@ -54,7 +54,10 @@ function merge(lists,max=6){const seen=new Set(),out=[];
  for(const r of lists.flat()){if(!r?.url||seen.has(r.url)||seen.has(key(r)))continue;seen.add(r.url);seen.add(key(r));out.push(r)}
  return out.sort((a,b)=>(b.excerpt?1:0)-(a.excerpt?1:0)).slice(0,max)}
 // AI 작성에 함께 줄 글: 논문 제목·연도·학술지와 초록 일부(영어 원문 그대로)
-function asText(records){return records.map((r,i)=>`${i+1}. ${r.title}${r.year||r.journal?' ('+[r.year,r.journal].filter(Boolean).join(', ')+')':''}`+(r.excerpt?`\n   초록 일부: ${r.excerpt}`:'\n   (초록 없음 — 제목만 참고하고 내용·효과를 짐작하지 않는다)')).join('\n').slice(0,2400)}
+const one=(r,i)=>`${i+1}. ${r.title}${r.year||r.journal?' ('+[r.year,r.journal].filter(Boolean).join(', ')+')':''}`+(r.excerpt?`\n   초록 일부: ${r.excerpt}`:'\n   (초록 없음 — 제목만 참고하고 내용·효과를 짐작하지 않는다)');
+// 논문 중간에서 잘리지 않게, 2,400자 안에 다 들어가는 논문까지만 쓴다(출처 목록도 같은 논문만).
+function fit(records,max=2400){let len=0,n=0;for(const [i,r] of records.entries()){const add=one(r,i).length+(n?1:0);if(n&&len+add>max)break;len+=add;n++}return records.slice(0,Math.max(1,n))}
+function asText(records){return records.map(one).join('\n').slice(0,2400)}
 async function fetchJson(url,doFetch,timeoutMs){const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),timeoutMs);
  try{const r=await doFetch(url,{method:'GET',signal:ctl.signal,redirect:'error',headers:{accept:'application/json','user-agent':'rehab-plan-app (psychiatric rehabilitation documentation; public topics only)'}});
   if(!r?.ok)return null;const type=String(r.headers?.get?.('content-type')||'').toLowerCase();if(type&&!type.includes('json'))return null;
@@ -65,11 +68,12 @@ async function lookup(topics,cats,{fetcher=globalThis.fetch,timeoutMs=6500}={}){
  const year=new Date().getFullYear(),from=year-8,jobs=[];
  for(const q of queries){
   const ep=new URL('https://www.ebi.ac.uk/europepmc/webservices/rest/search');
-  ep.searchParams.set('query',`(${q}) AND HAS_ABSTRACT:y AND PUB_YEAR:[${from} TO ${year}]`);ep.searchParams.set('format','json');ep.searchParams.set('resultType','core');ep.searchParams.set('pageSize','4');
+  // 최근 8년 논문만(Europe PMC 안내에 있는 날짜 범위 형식). 초록이 없는 논문은 merge에서 뒤로 보낸다.
+  ep.searchParams.set('query',`(${q}) AND FIRST_PDATE:[${from}-01-01 TO ${year}-12-31]`);ep.searchParams.set('format','json');ep.searchParams.set('resultType','core');ep.searchParams.set('pageSize','5');
   const cr=new URL('https://api.crossref.org/works');
   cr.searchParams.set('query.bibliographic',q);cr.searchParams.set('rows','3');cr.searchParams.set('filter',`type:journal-article,from-pub-date:${from},has-abstract:true`);cr.searchParams.set('select','DOI,title,abstract,published,container-title,type');
   jobs.push(fetchJson(ep.href,fetcher,timeoutMs).then(fromEurope),fetchJson(cr.href,fetcher,timeoutMs).then(fromCrossref))}
- const records=merge(await Promise.all(jobs));
+ const records=fit(merge(await Promise.all(jobs)));
  if(!records.length)return{ok:false,reason:'unavailable',queries};
  return{ok:true,queries,records,text:asText(records),sources:records.map(r=>({title:`${r.title}${r.year?' ('+r.year+')':''} — ${r.provider}`,uri:r.url}))}}
-module.exports={TOPIC_QUERY,CAT_QUERY,queriesFor,fromEurope,fromCrossref,merge,asText,lookup};
+module.exports={TOPIC_QUERY,CAT_QUERY,queriesFor,fromEurope,fromCrossref,merge,fit,asText,lookup};
