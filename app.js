@@ -1,7 +1,7 @@
 'use strict';
 // v2.1: 기록 관리는 서버 없이 동작. AI는 사용자가 동의한 경우에만 라이브러리·모델을 외부에서 내려받음.
 const KEY='sehuim_rehab_offline_v1';
-const APP_RELEASE='3.21.61-google-search';
+const APP_RELEASE='3.21.62-kr-sources';
 const $=(s,root=document)=>root.querySelector(s);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s??'').trim();
@@ -194,7 +194,7 @@ function normLearningItem(x){if(!isObj(x))return null;const mode=x.mode==='evalu
 function normFinalizedDocs(v){v=isObj(v)?v:{};const n={};for(const mode of ['plan','evaluation']){const x=v[mode];n[mode]=isObj(x)?{at:str(x.at),documentHash:str(x.documentHash).slice(0,80)}:null}return n}
 function normSnapshots(v){v=isObj(v)?v:{};return{plan:isObj(v.plan)?normPlan(v.plan):null,evaluation:isObj(v.evaluation)?normEvaluation(v.evaluation):null}}
 const newMember=n=>normMember({label:`회원 ${String(n).padStart(3,'0')}`},n-1);
-let state={members:[newMember(1)],memberId:null,view:'notes',save:false,references:[],activityDict:[],writerProfiles:DEFAULT_WRITERS(),writerId:DEFAULT_WRITER_ID,refInAI:true,refAuto60:true};state.memberId=state.members[0].id;
+let state={members:[newMember(1)],memberId:null,view:'notes',save:false,references:[],activityDict:[],writerProfiles:DEFAULT_WRITERS(),writerId:DEFAULT_WRITER_ID,refInAI:true,refAuto60:true,webSearch:false};state.memberId=state.members[0].id;
 // 현재 보고 있는 상담일지의 위치만 보관(상담자료 구조는 기존 버전과 동일)
 const selectedNoteByMember=new Map();
 let legacyDraft=null,legacyDraftMemberId=null;
@@ -274,7 +274,7 @@ function loadSaved(){
  try{state.references=normReferenceLibrary(saved.references)}catch{problems.push('전문자료')}
  try{state.activityDict=normActivityDict(saved.activityDict)}catch{problems.push('표현 사전')}
  // v3.21.60: 담당자 요청으로 AI 자동작성에 전문자료를 함께 쓰는 것이 기본(예전 저장본도 한 번 켬). 그 뒤에는 담당자가 고른 대로.
- state.refInAI=saved.refAuto60===true?saved.refInAI===true:true;state.refAuto60=true;
+ state.refInAI=saved.refAuto60===true?saved.refInAI===true:true;state.refAuto60=true;state.webSearch=saved.webSearch===true;
  try{state.writerProfiles=normWriterProfiles(saved.writerProfiles);state.writerId=state.writerProfiles.some(w=>w.id===saved.writerId)?saved.writerId:state.writerProfiles[0].id}catch{problems.push('작성자 프로필')}
  state.save=true;
  const cut=truncText(truncNotes(saved.members),saved.references,saved.activityDict);
@@ -292,7 +292,7 @@ let persistTimer=0,quotaWarned=false,dirty=false,lastBackupAt='',saveFailed=fals
 function updateSavePill(){const el=document.getElementById('savePill');if(!el)return;const undo=document.getElementById('undoImport');if(undo)undo.hidden=!importUndo;
  if(state.save&&(saveFailed||persistBlocked)){el.textContent=persistBlocked?'브라우저 저장 보류 · 원본 보호 중':'브라우저 저장 실패 · 백업 필요';el.className='save-pill save-err';el.title=persistBlocked?'불러오기 문제로 기존 저장본을 덮어쓰지 않습니다. 백업 후 저장 재개를 누르세요.':'저장 공간 부족 또는 차단. 백업 파일을 내려받으세요.';return}
  const pieces=state.save?(dirty?'브라우저 저장 대기':'브라우저 임시 저장 켜짐'):'브라우저 저장 꺼짐';el.textContent=pieces+(lastBackupAt?(changedSinceBackup?' · 백업 이후 변경 있음':' · 백업 내려받음'):' · 백업 별도 필요');el.className='save-pill '+(state.save&&!dirty?'save-ok':'save-warn');el.title=state.save?'이 PC 브라우저에 평문 임시 저장합니다. 암호화 백업을 별도로 보관하세요.':'브라우저를 닫거나 새로고침하면 변경 내용이 사라질 수 있습니다. 먼저 백업을 내려받으세요.';}
-function flushPersist(){clearTimeout(persistTimer);if(!state.save||persistBlocked)return false;try{const current=localStorage.getItem(KEY);if(lastOwnStorageValue!==current){persistBlocked=true;loadWarning='다른 창이나 탭에서 저장 데이터가 변경되었습니다. 데이터 충돌 방지를 위해 이 창의 자동 저장을 중단했습니다. 이 창 자료를 암호화 백업한 뒤 새로고침하세요.';updateSavePill();return false}const serialized=JSON.stringify({members:state.members,memberId:state.memberId,save:true,references:state.references,activityDict:state.activityDict,writerProfiles:state.writerProfiles,writerId:state.writerId,refInAI:state.refInAI===true,refAuto60:true});localStorage.setItem(KEY,serialized);if(localStorage.getItem(KEY)!==serialized)throw Error('저장 결과를 확인할 수 없습니다.');lastOwnStorageValue=serialized;dirty=false;saveFailed=false;updateSavePill();return true}catch(e){saveFailed=true;updateSavePill();if(!quotaWarned){quotaWarned=true;alert('브라우저 저장 공간이 부족하거나 저장이 차단되었습니다. 백업 파일을 내려받으세요. (이 경고는 한 번만 표시됩니다)')}return false}}
+function flushPersist(){clearTimeout(persistTimer);if(!state.save||persistBlocked)return false;try{const current=localStorage.getItem(KEY);if(lastOwnStorageValue!==current){persistBlocked=true;loadWarning='다른 창이나 탭에서 저장 데이터가 변경되었습니다. 데이터 충돌 방지를 위해 이 창의 자동 저장을 중단했습니다. 이 창 자료를 암호화 백업한 뒤 새로고침하세요.';updateSavePill();return false}const serialized=JSON.stringify({members:state.members,memberId:state.memberId,save:true,references:state.references,activityDict:state.activityDict,writerProfiles:state.writerProfiles,writerId:state.writerId,refInAI:state.refInAI===true,refAuto60:true,webSearch:state.webSearch===true});localStorage.setItem(KEY,serialized);if(localStorage.getItem(KEY)!==serialized)throw Error('저장 결과를 확인할 수 없습니다.');lastOwnStorageValue=serialized;dirty=false;saveFailed=false;updateSavePill();return true}catch(e){saveFailed=true;updateSavePill();if(!quotaWarned){quotaWarned=true;alert('브라우저 저장 공간이 부족하거나 저장이 차단되었습니다. 백업 파일을 내려받으세요. (이 경고는 한 번만 표시됩니다)')}return false}}
 function persist(){dirty=true;changedSinceBackup=true;dataVersion++;updateSavePill();if(!state.save||persistBlocked)return;clearTimeout(persistTimer);persistTimer=setTimeout(flushPersist,400)}
 // 문서별 명시적 저장: 자동저장이 켜져 있어도 즉시 쓰고 저장 결과를 직접 확인한다.
 // 기존 기록을 자동 덮어쓰지 않으며, 브라우저 저장이 불가능하면 성공 메시지를 표시하지 않는다.
@@ -412,7 +412,7 @@ async function encryptBackup(obj,pw){const salt=crypto.getRandomValues(new Uint8
 async function decryptBackup(env,pw){let salt,iv,data;try{salt=fromB64(String(env.salt));iv=fromB64(String(env.iv));data=fromB64(String(env.data))}catch{throw Error('암호화 백업 파일이 손상되었습니다(인코딩 오류).')}const iter=Number(env.iter);if(!Number.isInteger(iter)||iter<100000||iter>5000000)throw Error('암호화 백업 파일의 설정값이 올바르지 않습니다.');const key=await deriveKey(pw,salt,iter);try{const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,data);return JSON.parse(new TextDecoder().decode(pt))}catch{throw Error('비밀번호가 맞지 않거나 파일이 손상되었습니다.')}}
 function saveBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500)}
 const today=()=>todayStr();
-function exportPayload(){return{version:2,format:'rehab-standalone',schemaVersion:5,appRelease:APP_RELEASE,writerProfiles:state.writerProfiles,writerId:state.writerId,exportedAt:new Date().toISOString(),members:state.members,references:state.references,activityDict:state.activityDict,refInAI:state.refInAI===true,refAuto60:true}}
+function exportPayload(){return{version:2,format:'rehab-standalone',schemaVersion:5,appRelease:APP_RELEASE,writerProfiles:state.writerProfiles,writerId:state.writerId,exportedAt:new Date().toISOString(),members:state.members,references:state.references,activityDict:state.activityDict,refInAI:state.refInAI===true,refAuto60:true,webSearch:state.webSearch===true}}
 function confirmPiiForExport(){if(!SHOW_WARNINGS)return true;const pii=[...state.members.flatMap(m=>piiScan(m).map(x=>`[${m.label}] ${x}`)),...piiScanShared()];return !pii.length||confirm('개인식별정보로 보이는 항목이 있습니다:\n'+pii.slice(0,6).join('\n')+'\n\n그래도 내보내시겠습니까?')}
 async function downloadJson(){if(!confirmPiiForExport())return;if(!confirm('평문(암호화되지 않은) JSON 백업입니다. 접근이 통제된 저장소에만 보관할 수 있습니까?'))return;saveBlob(new Blob([JSON.stringify(exportPayload(),null,2)],{type:'application/json;charset=utf-8'}),`rehab_backup_${today()}.json`);dirty=false;changedSinceBackup=false;lastBackupAt=new Date().toISOString();updateSavePill()}
 async function downloadEncrypted(){if(!(crypto.subtle&&window.isSecureContext)){alert('이 환경(보안 컨텍스트 아님)에서는 암호화를 사용할 수 없습니다. https 또는 localhost에서 여십시오.');return}if(!confirmPiiForExport())return;const pw=await askDialog({title:'백업 비밀번호 설정',desc:'10자 이상. 분실하면 복구할 수 없습니다.',type:'password',confirmText:'다음'});if(pw==null)return;if(pw.length<10){alert('비밀번호는 10자 이상이어야 합니다.');return}const pw2=await askDialog({title:'비밀번호 확인',desc:'같은 비밀번호를 다시 입력하세요.',type:'password',confirmText:'암호화 저장'});if(pw2!==pw){alert('비밀번호가 일치하지 않습니다.');return}try{const env=await encryptBackup(exportPayload(),pw);saveBlob(new Blob([JSON.stringify(env)],{type:'application/json'}),`rehab_backup_${today()}.enc.json`);dirty=false;changedSinceBackup=false;lastBackupAt=new Date().toISOString();updateSavePill()}catch(e){alert('암호화 실패: '+e.message)}}
@@ -431,7 +431,7 @@ function validateBackupLimits(data){
   }
  }
 }
-function safeImport(data){validateBackupLimits(data);const seen=new Set();const members=data.members.map(normMember).map(m=>{if(seen.has(m.id))m.id=uid();seen.add(m.id);try{sortNotesByDate(m)}catch{}return m});const cutMsg=truncText(truncNotes(data.members),data.references,data.activityDict);let relearn=0;for(const m of members)for(const x of m.learningRecords)if(x.status==='approved'){x.status='pending';x.approvedAt='';relearn++}importUndo={members:state.members,references:state.references,activityDict:state.activityDict,memberId:state.memberId,writerProfiles:state.writerProfiles,writerId:state.writerId,view:state.view,refInAI:state.refInAI};state.members=members;state.references=normReferenceLibrary(data.references);state.refInAI=data.refAuto60===true?data.refInAI===true:true;state.activityDict=normActivityDict(data.activityDict);state.writerProfiles=normWriterProfiles(data.writerProfiles);state.writerId=state.writerProfiles.some(w=>w.id===data.writerId)?data.writerId:state.writerProfiles[0].id;
+function safeImport(data){validateBackupLimits(data);const seen=new Set();const members=data.members.map(normMember).map(m=>{if(seen.has(m.id))m.id=uid();seen.add(m.id);try{sortNotesByDate(m)}catch{}return m});const cutMsg=truncText(truncNotes(data.members),data.references,data.activityDict);let relearn=0;for(const m of members)for(const x of m.learningRecords)if(x.status==='approved'){x.status='pending';x.approvedAt='';relearn++}importUndo={members:state.members,references:state.references,activityDict:state.activityDict,memberId:state.memberId,writerProfiles:state.writerProfiles,writerId:state.writerId,view:state.view,refInAI:state.refInAI};state.members=members;state.references=normReferenceLibrary(data.references);state.refInAI=data.refAuto60===true?data.refInAI===true:true;state.webSearch=data.webSearch===true;state.activityDict=normActivityDict(data.activityDict);state.writerProfiles=normWriterProfiles(data.writerProfiles);state.writerId=state.writerProfiles.some(w=>w.id===data.writerId)?data.writerId:state.writerProfiles[0].id;
  const validWriters=new Set(state.writerProfiles.map(w=>w.id));for(const mm of state.members)for(const rec of mm.learningRecords)if(!validWriters.has(rec.writerId)){rec.writerId=state.writerId;rec.status='pending';rec.approvedAt=''}
  state.memberId=members[0].id;state.view='notes';selectedNoteByMember.clear();legacyDraft=null;legacyDraftMemberId=null;lastBackupAt='';persist();paint();return[cutMsg,relearn?`학습 후보 ${relearn}건은 다시 승인이 필요합니다.`:''].filter(Boolean)}
 
@@ -841,26 +841,28 @@ function proPrompt(topics,web,doc='plan'){const parts=[];
  if(topics.length&&proReady()){const K=ProKnowledge,out=['[관련 전문자료 — 체크한 상담일지에 나온 증상·문제로 찾은 공개 자료 요약. 일반 원칙이며 이 회원의 사실이 아니다]'];
   for(const t of topics){const tp=K.byId[t.id];if(!tp)continue;const src=tp.sources.map(k=>{const s=K.SOURCES[k],st=proSourceState(k);return s.name+(st?.checkedOnline?'(공식 페이지 확인)':'')}).join(', ')||'정신재활 실무 원칙';
    out.push(`- ${tp.name} (상담일지 ${t.notes.slice(0,4).map(i=>i+1).join(', ')}): ${tp.points.join(' ')} [출처: ${src}]`)}
-  parts.push(out.join('\n').slice(0,web?.ok?1500:2000))}
+  parts.push(out.join('\n').slice(0,web?.ok?1500:3200))}
  if(!parts.length)return '';
  parts.push(`[전문자료 쓰는 법] ${PRO_RULES[doc]||PRO_RULES.plan} ③ 자료에 나온 활동을 이 회원이 이미 했다고 쓰지 않고, 상담일지에 없는 회원의 말·행동·결과를 만들지 않는다. ④ 기관·자료 이름은 문서에 쓰지 않는다.`);
  return parts.join('\n')}
 // 주제에 맞는 공식 페이지를 서버로 확인한다(한 시간 기억). 실패해도 내장 요약으로 계속 쓴다.
 // v3.21.61: 공식 페이지 확인과 구글 검색을 함께 한다. 검색이 안 되면 내장 요약으로 계속 쓴다(작성은 멈추지 않음).
-async function proEvidence(sentences,{m=member()}={}){proMeta='';const topics=proTopics(sentences),cats=proReady()?proCats(m):[];
+async function proEvidence(sentences,{m=member()}={}){proMeta='';const topics=proTopics(sentences),cats=proReady()&&state.webSearch===true?proCats(m):[];
  if(!topics.length&&!cats.length)return{text:'',textFor:()=>'',topics,web:null};
  const keys=topics.length?ProKnowledge.sourcesFor(topics.map(t=>t.id)):[],need=keys.filter(k=>!proSourceState(k));
  const official=need.length?(async()=>{try{await ensureInstitutionSession();const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),7000);
    try{const r=await fetch('/api/clinical-guidance',{method:'POST',credentials:'same-origin',cache:'no-store',signal:ctl.signal,headers:{'content-type':'application/json','x-requested-with':'rehab-app'},body:JSON.stringify({categories:[],topics:topics.map(t=>t.id)})});
     if(r.ok){const d=await r.json();for(const x of Array.isArray(d?.topicSources)?d.topicSources:[])if(ProKnowledge.SOURCES[x?.key])proCache.set(x.key,{at:Date.now(),checkedOnline:x.checkedOnline===true,overview:str(x.overview)})}}finally{clearTimeout(timer)}}catch{}})():null;
- const [,web]=await Promise.all([official,proWebSearch(m,topics,{onStart:()=>{setAIProgress('구글에서 전문자료를 찾는 중입니다… (회원 정보는 보내지 않고 증상·주제 이름만 씁니다)',1);if(!aiWorking&&(state.view==='ai'||state.view==='doctor'))paint()}})]);
+ const webOn=state.webSearch===true; // v3.21.62: 구글 검색은 켰을 때만(무료 등급에서는 막혀 있어 기본 끔)
+ const [,web]=await Promise.all([official,!webOn?null:proWebSearch(m,topics,{onStart:()=>{setAIProgress('구글에서 전문자료를 찾는 중입니다… (회원 정보는 보내지 않고 증상·주제 이름만 씁니다)',1);if(!aiWorking&&(state.view==='ai'||state.view==='doctor'))paint()}})]);
  const live=keys.filter(k=>proSourceState(k)?.checkedOnline).length;
  const local=topics.length?`전문자료 ${topics.length}개 주제 참고(${topics.map(t=>t.name).slice(0,3).join(', ')}${topics.length>3?' 등':''} · 공식 페이지 확인 ${live}/${keys.length}곳, 회원 정보 전송 없음)`:'';
  proMeta=web?.ok?`구글 검색으로 최신 전문자료 ${web.sources.length}곳 참고(검색어: ${web.queries.slice(0,2).map(q=>'‘'+q+'’').join(', ')}${web.queries.length>2?' 등':''})${local?' · '+local:''}`
   :[local,web?'구글 검색 안 됨: '+web.message:''].filter(Boolean).join(' · ');
  return{text:proPrompt(topics,web,'plan'),textFor:d=>proPrompt(topics,web,d),topics,web}}
 // 구글 검색 결과 칸: 검색어·요약·출처와 구글 검색 추천(약관상 결과와 함께 그대로 보여 줌)
-function proWebHtml(m,topics){const cats=proCats(m);if(!topics.length&&!cats.length)return '';const key=proWebKey(topics,cats),h=proWebState(key),busy=proWebBusy===key,what=`주제 이름${cats.length?'·진단 분류':''}`;
+function proWebHtml(m,topics){if(state.webSearch!==true)return `<div class="pro-web"><p class="muted"><b>구글 검색:</b> 꺼져 있습니다. 무료 등급에서는 쓸 수 없어 기본으로 꺼 두었고, 아래 내장 자료(국내외 공공·전문기관 요약)로 작성합니다. 결제를 등록한 뒤 ‘전문자료 학습관리’에서 켤 수 있습니다.</p></div>`;
+ const cats=proCats(m);if(!topics.length&&!cats.length)return '';const key=proWebKey(topics,cats),h=proWebState(key),busy=proWebBusy===key,what=`주제 이름${cats.length?'·진단 분류':''}`;
  const btn=`<button type="button" class="btn small" data-act="pro-search"${h?' data-force="1"':''}${busy||aiPreparing?' disabled':''}>${busy?'구글에서 찾는 중…':h?.ok?'다시 검색':h?'다시 시도':'구글에서 전문자료 찾아보기'}</button>`;
  if(busy&&!h)return `<div class="pro-web"><p><b>구글 검색:</b> <span class="muted">${what}로 최신 전문자료를 찾는 중입니다…</span> ${btn}</p></div>`;
  if(!h)return `<div class="pro-web"><p><b>구글 검색:</b> <span class="muted">AI 자동작성을 시작하면 ${what}로 구글에서 최신 전문자료를 찾아 함께 씁니다. 미리 보려면 누르세요.</span> ${btn}</p></div>`;
@@ -874,17 +876,17 @@ function mountProSuggestions(){for(const el of document.querySelectorAll('#conte
 document.addEventListener('click',ev=>{const host=ev.target?.closest?.('.pro-gs');if(!host)return;const a=ev.composedPath().find(x=>x?.tagName==='A'&&x.getAttribute?.('href'));if(!a)return;ev.preventDefault();if(/^https:\/\/(?:www\.)?google\.[a-z.]{2,12}\/search\?/i.test(a.href))window.open(a.href,'_blank','noopener,noreferrer')});
 document.addEventListener('toggle',ev=>{if(ev.target?.id==='proBox')proUI.open=ev.target.open},true);
 // 화면에 보여 줄 ‘찾은 전문자료’(AI 작성 전에도 이 컴퓨터 안에서 바로 계산)
-function proBox(sentences,{title='체크한 상담일지로 찾은 전문자료',m=member()}={}){if(!proReady())return '';const topics=proTopics(sentences),cats=proCats(m);
+function proBox(sentences,{title='체크한 상담일지로 찾은 전문자료',m=member()}={}){if(!proReady())return '';const topics=proTopics(sentences),cats=state.webSearch===true?proCats(m):[];
  if(!topics.length&&!cats.length)return `<div class="pro-box noprint"><b>${escapeHtml(title)}</b><p class="muted">체크한 상담일지에서 증상·문제 낱말을 찾지 못했습니다. 상담일지 내용으로만 작성합니다.</p></div>`;
  const K=ProKnowledge,h=proWebState(proWebKey(topics,cats)),label=[...topics.map(t=>escapeHtml(t.name)),...cats.map(c=>'진단 분류 '+PRO_CAT_NAMES[c])].join(' · ')+(h?.ok?` · 구글 검색 출처 ${h.sources.length}곳`:'');
  return `<details class="pro-box noprint" id="proBox"${proUI.open?' open':''}><summary><b>${escapeHtml(title)}</b><span class="muted"> · ${label}</span></summary>
- <p class="muted">AI 자동작성 때 아래 자료를 개입 방법·성과 기준·평가 의견에 반영하도록 함께 줍니다. 상담일지 문장과 회원 정보는 밖으로 보내지 않고, 구글 검색과 공식 페이지 확인에는 주제 이름${cats.length?'·진단 분류':''}만 씁니다.</p>
+ <p class="muted">AI 자동작성 때 아래 자료를 개입 방법·성과 기준·평가 의견에 반영하도록 함께 줍니다. 상담일지 문장과 회원 정보는 밖으로 보내지 않고, ${state.webSearch===true?'구글 검색과 ':''}공식 페이지 확인에는 주제 이름${cats.length?'·진단 분류':''}만 씁니다.</p>
  ${proWebHtml(m,topics)}
  ${topics.length?`<p class="muted"><b>내장 요약</b> — 구글 검색이 안 될 때도 씁니다.</p><ul>${topics.map(t=>{const tp=K.byId[t.id];return `<li><b>${escapeHtml(tp.name)}</b> <span class="muted">(상담일지 ${t.notes.slice(0,6).map(i=>i+1).join(', ')})</span><br>${tp.points.map(escapeHtml).join('<br>')}<br><span class="muted">출처: ${tp.sources.length?tp.sources.map(k=>`<a href="${escapeHtml(K.SOURCES[k].url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(K.SOURCES[k].name)}</a>`).join(', '):'정신재활 실무 원칙'}</span></li>`}).join('')}</ul>`:'<p class="muted">체크한 상담일지에서 증상·문제 낱말은 찾지 못해 진단 분류로만 찾습니다.</p>'}</details>`}
 // 전문자료 학습관리 화면: 내장된 공개 전문자료(주제·요약·출처) 목록
 function proLibraryHtml(){if(!proReady())return '';const K=ProKnowledge;
  return `<details class="pro-box noprint"><summary><b>내장 공개 전문자료</b><span class="muted"> · 증상·문제 ${K.TOPICS.length}개 주제 · 출처 ${Object.keys(K.SOURCES).length}곳</span></summary>
- <p class="muted">AI 자동작성 때 체크한 상담일지에 나온 증상·문제 낱말로 아래 주제를 찾고, 그 주제 이름(과 진단 분류)으로 구글에서 최신 전문자료도 검색해 함께 줍니다. 구글 검색과 공식 페이지 확인에는 주제 이름만 쓰고, 상담일지 문장·회원 정보는 보내지 않습니다. 구글 검색이 안 되면 아래 내장 요약만 씁니다.</p>
+ <p class="muted">AI 자동작성 때 체크한 상담일지에 나온 증상·문제 낱말로 아래 주제를 찾아 국내외 공공·전문기관 자료 요약을 함께 줍니다. 공식 페이지 확인에는 주제 이름만 쓰고, 상담일지 문장·회원 정보는 보내지 않습니다. 위의 ‘구글에서 최신 전문자료도 검색하기’를 켜면(유료 결제 등급) 구글 검색 결과도 더합니다.</p>
  <ul>${K.TOPICS.map(t=>`<li><b>${escapeHtml(t.name)}</b><br>${t.points.map(escapeHtml).join('<br>')}<br><span class="muted">출처: ${t.sources.length?t.sources.map(k=>`<a href="${escapeHtml(K.SOURCES[k].url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(K.SOURCES[k].name)}</a>`).join(', '):'정신재활 실무 원칙'}</span></li>`).join('')}</ul></details>`}
 // ---------- v3.21.59: 주치의편지(회원경과보고) ----------
 let doctorUndo=null,doctorUI={historyOpen:false};
@@ -2604,6 +2606,8 @@ function referencePage(m){
  <div class="grid3"><div class="stat"><span>등록 자료</span><strong>${refs.length}건</strong></div><div class="stat"><span>사용 중</span><strong>${used.length}건</strong></div><div class="stat"><span>현재 회원 관련 자료 후보</span><strong>${hit.length}건</strong></div></div>
  <div class="toolbar noprint"><label class="checkboxline"><input type="checkbox" id="refInAI" ${state.refInAI?'checked':''}> AI 자동작성(재활계획서·재활평가서·주치의편지)에 관련 등록 전문자료 발췌를 함께 보내기</label></div>
  <p class="muted">기본으로 켜져 있습니다. 체크한 상담일지와 연결되는 등록 자료만 골라 보냅니다. 등록 자료 본문에 실제 회원 사례나 이름이 섞여 있지 않은지 확인해 주세요.</p>
+ <div class="toolbar noprint"><label class="checkboxline"><input type="checkbox" id="webSearch" ${state.webSearch?'checked':''}> AI 자동작성 때 구글에서 최신 전문자료도 검색하기 (Gemini 유료 결제 등급에서만 됨)</label></div>
+ <p class="muted">기본으로 꺼져 있습니다. 무료 등급에서는 구글 검색이 막혀 있어 켜도 ‘구글 검색 안 됨’만 나옵니다. Google AI Studio에서 결제를 등록한 뒤 켜세요. 켜도 검색에는 주제 이름·진단 분류만 보내고 회원 정보는 보내지 않습니다.</p>
  ${proLibraryHtml()}
  <h3>논문·자료 등록</h3>
  <div class="grid"><div class="field"><label for="refTitle">자료 제목 *</label><input id="refTitle" type="text" maxlength="180" placeholder="예: 조현병의 사회기술훈련 실무지침"></div><div class="field"><label for="refAuthor">저자 / 발행기관</label><input id="refAuthor" type="text" maxlength="160" placeholder="저자 또는 발행기관"></div></div>
@@ -3100,12 +3104,13 @@ document.addEventListener('change',ev=>{const t=ev.target;if(!t?.dataset?.bind||
 document.addEventListener('change',ev=>{const t=ev.target;if((t.dataset.bind||t.dataset.legacyField!==undefined||t.dataset.activityUse!==undefined||t.dataset.conn!==undefined||t.hasAttribute('data-note-check'))&&!uiMemberScopeValid(t))return;if(t.dataset.legacyField==='autoApply'){currentLegacyDraft(member()).autoApply=t.checked;return}if(t.dataset.legacyField==='useAI'){currentLegacyDraft(member()).useAI=t.checked;return}if(t.dataset.legacyField==='type'){const d=currentLegacyDraft(member());if(d.id){t.value=d.type;alert('저장된 과거 문서의 종류는 수정할 수 없습니다. 다른 종류의 문서는 새로 등록해 주세요.');return}d.type=t.value;paint();return}if(t.dataset.legacyField==='entryMode'){const d=currentLegacyDraft(member());if(d.id){t.value=d.entryMode;alert('기존 과거 문서의 입력 형식은 유지됩니다. 다른 형식으로 입력하려면 새 문서를 등록하세요.');return}d.entryMode=t.value;paint();return}if(t.hasAttribute('data-note-check')){if(aiWorking)return;const i=Number(t.dataset.noteCheck),m=member();if(Number.isInteger(i)&&i>=0&&i<m.notes.length){m.notes[i].included=t.checked;persist();t.closest('.note-list-row')?.classList.toggle('checked',t.checked);refreshNoteCounters()}return}if(t.dataset.activityUse!==undefined){if(aiWorking)return;const m=member(),id=t.dataset.activityUse;m.activityExcluded=(m.activityExcluded||[]).filter(x=>x!==id);if(!t.checked)m.activityExcluded.push(id);persist();t.closest('tr')?.classList.toggle('act-off',!t.checked);return}if(t.dataset.conn!==undefined&&t.dataset.field==='provider'){const i=Number(t.dataset.conn);if(aiConns[i]){aiConns[i]=normConn({id:aiConns[i].id,provider:t.value});delete aiModelLists[aiConns[i].id];saveConns();paint()}return}if(t.dataset.conn!==undefined){const i=Number(t.dataset.conn);if(aiConns[i]){saveConns();paint()}return}if(t.id==='memberPicker'&&aiWorking){t.value=state.memberId;alert('AI 작성 중에는 회원을 바꿀 수 없습니다.');return}if(aiWorking)return;
  if(t.id==='writerPicker'){if(!state.writerProfiles.some(w=>w.id===t.value))return;state.writerId=t.value;persist();paint();return}
  if(t.id==='refInAI'){state.refInAI=t.checked;persist();paint();return}
+ if(t.id==='webSearch'){state.webSearch=t.checked;proWeb.clear();persist();paint();return} // v3.21.62: 구글 검색 켜기(기본 끔)
  if(t.id==='memberPicker'){if(legacyDraftMemberId===member().id&&(clean(legacyDraft?.text)||clean(legacyFormToText(legacyDraft?.type,legacyDraft?.structured?.[legacyDraft?.type])))&&!confirm('과거 문서 입력 중인 내용이 저장되지 않았을 수 있습니다. 회원을 변경하시겠습니까?')){t.value=state.memberId;return}state.memberId=t.value;legacyDraft=null;legacyDraftMemberId=null;persist();paint();return}
  if(t.id==='autosave'){if(t.checked){if(!confirm('이 브라우저에 상담·계획·평가 내용이 평문으로 저장됩니다. 공용 PC가 아니고, 기기 사용자가 본인뿐일 때만 사용하세요. 계속하시겠습니까?')){t.checked=false;return}state.save=true;lastOwnStorageValue=localStorage.getItem(KEY);flushPersist()}else{if(!confirm('브라우저에 저장된 데이터를 삭제하고 저장 기능을 끕니다. 백업을 받으셨습니까?')){t.checked=true;return}state.save=false;persistBlocked=false;loadWarning='';try{localStorage.removeItem(KEY);localStorage.removeItem(KEY+'_corrupt');lastOwnStorageValue=null}catch{}}paint();return}
  if(t.dataset.bind){setProp(member(),t.dataset.bind,t.value);if(/^notes\.\d+\./.test(t.dataset.bind)){const i=Number(t.dataset.bind.split('.')[1]);if(NOTE_FIELDS.includes(t.dataset.bind.split('.')[2]))updateNoteBody(member(),i);refreshNoteListRow(i)}if(t.dataset.bind==='plan.memberVoice')autoNeedFromVoice(member(),'member');if(t.dataset.bind==='plan.familyVoice')autoNeedFromVoice(member(),'family');persist()}});
 document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-act]');if(!b)return;const action=b.dataset.act;if(aiWorking&&action!=='ai-cancel')return;const m=member();switch(action){
 case 'navigate':state.view=b.dataset.view;if(state.view==='evaluation'&&!aiWorking)syncPlanToEval(m);paint();break;
-case 'pro-search':{if(aiPreparing||proWebBusy)break;const topics=proTopics(state.view==='doctor'?doctorSentences(m):noteSentences(m)); // v3.21.61: 구글에서 전문자료 미리 찾아보기
+case 'pro-search':{if(aiPreparing||proWebBusy||state.webSearch!==true)break;const topics=proTopics(state.view==='doctor'?doctorSentences(m):noteSentences(m)); // v3.21.61: 구글에서 전문자료 미리 찾아보기
  if(!topics.length&&!proCats(m).length){alert('체크한 상담일지에서 찾은 증상·문제 주제와 진단 분류가 없어 검색할 것이 없습니다.');break}
  proUI.open=true;await proWebSearch(m,topics,{force:b.dataset.force==='1',onStart:paint});if(member()===m)paint();break}
 case 'psy-add':{const el=document.getElementById('psyCustom'),entry=normPsy(String(el?.value||''))[0]||'';if(!entry){alert('추가할 진단명 또는 증상을 입력해 주세요.');break}
