@@ -1,7 +1,7 @@
 'use strict';
 // v2.1: 기록 관리는 서버 없이 동작. AI는 사용자가 동의한 경우에만 라이브러리·모델을 외부에서 내려받음.
 const KEY='sehuim_rehab_offline_v1';
-const APP_RELEASE='3.21.64-hwp-doc-paste';
+const APP_RELEASE='3.21.65-sw-fill';
 const $=(s,root=document)=>root.querySelector(s);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s??'').trim();
@@ -81,11 +81,14 @@ function legacyPlanOf(d){if(d.entryMode==='structured'&&d.structured?.plan)retur
 function carryGoals(m){const cur=(m.plan?.goals||[]).filter(g=>clean(g.long));const sel=m.carry?.long;if(!Array.isArray(sel))return cur;
  const out=[];for(const t of sel){const same=cur.filter(g=>bankKey(g.long)===bankKey(t));if(same.length)out.push(...same.filter(g=>!out.includes(g)));else out.push({...emptyGoal(),long:clean(t)})}
  return out}
-// 담당자가 고른 강점·약점을 새 계획서에 넣는다. 3칸이 다 차지 않으면 이번에 새로 쓴 내용으로 채운다.
+// 담당자가 고른 강점·약점을 새 계획서에 넣는다. 3칸이 다 차지 않으면 이번에 새로 쓴 내용으로, 그래도 비면 체크한 상담일지에서 찾아 채운다.
 function applyCarrySW(m,p,fresh){const c=m.carry;if(!c)return false;let done=false;
  for(const k of ['strength','weakness']){if(!Array.isArray(c[k]))continue;const sel=c[k].filter(bankOk);
   const rest=(fresh?.[k]||[]).filter(v=>bankOk(v)&&!sel.some(s=>bankKey(s)===bankKey(v)));
-  p[k]=arrN([...sel,...rest].slice(0,3),3);done=true}
+  let list=[...sel,...rest].slice(0,3);
+  // v3.21.65: 그래도 3칸이 다 차지 않으면 체크한 상담일지에서 찾아 채운다.
+  if(list.length<3)list=[...list,...swFillFromNotes(m,k,list,3-list.length,(k==='strength'?c.weakness:c.strength)||[])];
+  p[k]=arrN(list,3);done=true}
  if(done){p.swUses='1';p.swSince=todayStr();p.swPinned=true}
  return done}
 
@@ -1967,7 +1970,7 @@ function generateDraft(m,quiet=false){const findings=analyze(m);const keys=findi
   if(rows.length)p.services=groupPlanServices(rows)}
  p.opinion=(existing.length?'기존 장기목표는 유지하고 단기목표·활동·성과지표만 갱신하는 초안임. 목표별 연결성을 담당자가 확인할 것.\n':'')+'상담기록에서 확인되는 증상 변화, 생활기능 및 건강관리 요구를 고려하여 개별화된 재활목표를 설정함. 개입은 회원의 자기결정권과 안전을 존중하되, 증상 악화·의학적 위험 관련 사항은 의료진과 협력하여 조정할 계획임. 기록별 발생 시점과 동일 회원 여부를 확인한 후 최종 확정할 필요가 있음.';
  extractPlanModels(p,m);
- styleDocText(p);styleGoals(p);{const fresh={strength:[...p.strength],weakness:[...p.weakness]};carryStrengths(m.plan,p);applyCarrySW(m,p,fresh)}carryNeeds(m.plan,p);fillPlanGoalSlots(p.goals);archivePlan(m);m.plan=p;m.carry=null;trackDraft(m,'plan');persist();if(quiet)return;state.view='plan';paint();alert('재활계획서 초안을 생성했습니다. 기존 장기목표는 유지했고, 이전 계획서는 ‘이전 계획’으로 보관했습니다.\n각 목표 옆의 근거 기록과 확인 필요 표시(노란색)를 검토하세요.')}
+ styleDocText(p);styleGoals(p);{const fresh={strength:[...p.strength],weakness:[...p.weakness]};carryStrengths(m.plan,p);applyCarrySW(m,p,fresh);fillSWBlanks(m,p,fresh)}carryNeeds(m.plan,p);fillPlanGoalSlots(p.goals);archivePlan(m);m.plan=p;m.carry=null;trackDraft(m,'plan');persist();if(quiet)return;state.view='plan';paint();alert('재활계획서 초안을 생성했습니다. 기존 장기목표는 유지했고, 이전 계획서는 ‘이전 계획’으로 보관했습니다.\n각 목표 옆의 근거 기록과 확인 필요 표시(노란색)를 검토하세요.')}
 // 평가 목표의 재연결은 고유 ID 또는 완전히 같은 단기목표만 허용한다.
 // 이전 계획의 평가를 새 계획으로 '순서만 보고' 강제 이동시키지 않는다.
 const EVAL_INPUT=['analysis','before','after','result','achMember','achStaff','blockMember','blockStaff'];
@@ -2261,6 +2264,37 @@ function memberBarrier(t){
  return true;
 }
 function ruleStrengths(m,max=3){const pool=noteSentences(m).filter(x=>!NOT_MEMBER_SUBJ.test(x.s)&&!isBad(x.s)&&!NOT_FACT.test(x.s)&&!/["“”]/.test(x.s));return pickLatest(pool,GOOD_RE,null,max).map(x=>cut(plainEnd(x.s),110))}
+// v3.21.65: 강점·약점 빈칸 채우기 — 담당자가 고른 항목이 3개보다 적으면 체크한 상담일지에서 회원의 강점·어려움이 드러난 사실 문장을 찾아 채운다(최근 기록부터).
+// 직원의 판단·계획 문장, 직원이 한 일, 인용(대화체), 다른 사람이 주어인 문장은 쓰지 않는다.
+const WEAK_EXTRA=/충동|위반|어기|어김|어겼|부족|미흡|저하|서툴|미숙|잦음|잦은|잦아|자주\s*(?:빠지|늦|다투|잊)|고립|회피|의존|소극적|짜증|화를\s*(?:냄|내)|폭식|과식|늦잠|결근|무단|방치|미루|잊어버|깜빡|어려워|힘들(?:다|었|어)|못\s*(?:지키|챙기|일어나)/;
+const swStatement=s=>{let t=String(s||'').replace(/^\s*[-•·▪■]\s*/,'').replace(/^(?:\d{1,2}\s*[./]\s*\d{1,2}|\d{1,2}월\s*\d{1,2}일)\s*[,:]?\s*/,'').replace(/^(?:회원|본인|대상자|이용자)(?:은|는|이|가)\s+/,'').trim();t=plainEnd(t);if(t.length<4||t.length>95)return '';return /[.。!?)]$/.test(t)?t:t+'.'};
+// 같은 뜻의 문장인지(글자 두 개씩 묶어 겹치는 정도로 본다)
+const bigrams=k=>{const t=String(k).replace(/프로그램|참여|활동|상담|교육/g,'|'),out=new Set();for(let i=0;i<t.length-1;i++){const b=t.slice(i,i+2);if(!b.includes('|'))out.add(b)}return out}; // ‘프로그램·참여’ 같은 흔한 말은 빼고 비교
+const nearSame=(a,b)=>{if(!a||!b)return false;if(a===b||(a.length>=8&&b.length>=8&&(a.includes(b)||b.includes(a))))return true;if(a.length<6||b.length<6)return false;const A=bigrams(a),B=bigrams(b);if(A.size<3||B.size<3)return false;let n=0;for(const x of A)if(B.has(x))n++;return n/Math.min(A.size,B.size)>=0.4};
+// 같은 영역끼리는 같은 대상(산책·용돈·복약 …)을 말하면 겹치는 항목으로 본다.
+const topicGrams=t=>{const k=bankKey(t).replace(/프로그램|참여|활동|상담|교육|어려움|어려워|어렵|힘들|부족|있음|없음|많음|잦음|꾸준히|스스로|적극|관심|좋아|함$|음$/g,'|'),out=new Set();for(let i=0;i<k.length-1;i++){const b=k.slice(i,i+2);if(!b.includes('|'))out.add(b)}return out};
+const shareTopic=(a,b)=>{const A=topicGrams(a);for(const x of topicGrams(b))if(A.has(x))return true;return false};
+const GOOD_EXTRA=/끝까지|먼저\s*(?:인사|다가|도와)|도와줌|도와주|양보|배려|인사를\s*잘/;
+function swFillFromNotes(m,kind,taken=[],need=3,other=[]){if(need<=0)return[];
+ const pool=noteSentences(m).filter(x=>!NOT_MEMBER_SUBJ.test(x.s)&&!NOT_FACT.test(x.s)&&!/["“”]/.test(x.s)&&memberEvidence(x.s));
+ const raw=kind==='strength'?pool.filter(x=>(GOOD_RE.test(x.s)||GOOD_EXTRA.test(x.s))&&!isBad(x.s)&&!WEAK_EXTRA.test(x.s)):pool.filter(x=>!IMPROVED.test(x.s)&&(NEG_RE.test(x.s)||WEAK_EXTRA.test(x.s)));
+ // 성향을 나타내는 말(‘어려워함’, ‘꾸준히’)이 있는 문장 → 최근 기록 순으로 고르고, 이미 고른 항목과 같은 영역은 뒤로 미룬다.
+ const TRAIT=kind==='strength'?/꾸준|성실|스스로|적극|잘\s*(?:참여|지냄|지키|챙기|따르)|좋아|즐겨|관심|협조|규칙적|빠짐없이|자발|끝까지/:/어려워|어려움|부족|잦|힘들|미흡|서툴|못\s*(?:함|하|지키|챙기)|경향|자주|쉽게/;
+ const keys=taken.map(bankKey).filter(Boolean),otherKeys=other.map(bankKey).filter(Boolean),areasTaken=new Set(taken.map(t=>areaIdOfText(t)).filter(Boolean)),seen=new Set(),cands=[];
+ const sameText=(a,b)=>a===b||(a.length>=8&&b.length>=8&&(a.includes(b)||b.includes(a)));
+ raw.forEach((x,idx)=>{const t=swStatement(x.s);if(!t||!bankOk(t))return;const k=bankKey(t);if(seen.has(k))return;seen.add(k);cands.push({t,k,idx,area:areaIdOfText(t),trait:TRAIT.test(t)?1:0})});
+ cands.sort((a,b)=>(b.trait-a.trait)||(b.idx-a.idx));
+ const out=[],chosen=[...taken];
+ for(let pass=0;pass<2&&out.length<need;pass++)for(const c of cands){if(out.length>=need)break;if(out.includes(c.t)||keys.some(y=>nearSame(y,c.k))||otherKeys.some(y=>sameText(y,c.k)))continue;
+  if(c.area&&areasTaken.has(c.area)&&(pass===0||chosen.some(t=>areaIdOfText(t)===c.area&&shareTopic(t,c.t))))continue; // 같은 영역은 뒤로, 같은 대상이면 넣지 않음
+  keys.push(c.k);chosen.push(c.t);if(c.area)areasTaken.add(c.area);out.push(c.t)}
+ return out}
+// v3.21.65: 새 계획서의 강점·약점이 3칸보다 적으면(1년 주기로 이어 온 항목, AI·규칙이 덜 쓴 경우) 이번에 새로 쓴 내용 → 체크한 상담일지 순으로 채운다.
+function fillSWBlanks(m,p,fresh){for(const k of ['strength','weakness']){const list=(p[k]||[]).filter(bankOk).map(clean);if(list.length>=3)continue;
+  const keys=list.map(bankKey),oth=(p[k==='strength'?'weakness':'strength']||[]).filter(bankOk);
+  for(const v of (fresh?.[k]||[])){if(list.length>=3)break;if(!bankOk(v))continue;const kk=bankKey(v);if(keys.some(y=>nearSame(y,kk))||oth.some(o=>bankKey(o)===kk))continue;keys.push(kk);list.push(clean(v))}
+  if(list.length<3)list.push(...swFillFromNotes(m,k,list,3-list.length,oth));
+  p[k]=arrN(list,3)}}
 // 목표별 근거 문장 필터: 영역을 단순히 1개 단어로 판단하지 않고 구체적 행위·문제를 확인한다.
 const EVIDENCE_DOMAIN={
  mental:/환청|망상|피해사고|우울|불안|복약|투약|정신건강의학|정신과|주치의|증상|병식|현실검증|자살|자해|금주|단주|음주/,
@@ -2563,17 +2597,22 @@ function applyCarryNow(m){carryState(m);const plan=m.plan;
   rows.push(g)}); // 장기목표 없이 단기목표만 쓴 줄은 그대로 둔다
  for(const t of pending){rows.push({_new:t});added.push(t)}
  const swSame=(k,sel)=>JSON.stringify((plan[k]||[]).filter(bankOk).map(bankKey))===JSON.stringify(sel.map(bankKey));
- const sChange=!swSame('strength',S),wChange=!swSame('weakness',W);
- if(!added.length&&!removed.length&&!sChange&&!wChange){carryMsg('지금 계획서와 같습니다. 바뀐 항목이 없습니다.',false);return}
+ // v3.21.65: 고른 강점·약점이 3개보다 적으면 남은 칸은 체크한 상담일지에서 찾아 채운다.
+ const fillS=S.length<3?swFillFromNotes(m,'strength',S,3-S.length,W):[],fillW=W.length<3?swFillFromNotes(m,'weakness',W,3-W.length,S):[];
+ const S2=[...S,...fillS],W2=[...W,...fillW];
+ const sChange=!swSame('strength',S2),wChange=!swSame('weakness',W2);
+ const noMore=noteSelection(m).used.length?[['강점',S,fillS],['약점',W,fillW]].filter(([,sel,fill])=>sel.length<3&&!fill.length).map(([n])=>n):[];
+ if(!added.length&&!removed.length&&!sChange&&!wChange){carryMsg('지금 계획서와 같습니다. 바뀐 항목이 없습니다.'+(noMore.length?` (${noMore.join('·')}의 빈칸을 채울 내용을 체크한 상담일지에서 더 찾지 못했습니다)`:''),false);return}
  const lines=[];
  if(added.length||removed.length){lines.push('[장기목표]');if(kept.length)lines.push('· 그대로 둠: 목표 '+kept.join(', '));for(const t of added)lines.push('· 새로 넣음: ‘'+cut(t,40)+'’');for(const r of removed)lines.push('· 뺌: 목표 '+r.i+' ‘'+cut(r.text,30)+'’ (그 줄의 단기목표·재활계획도 빠짐)');if(added.length)lines.push('※ 새로 넣는 장기목표의 단기목표·재활계획은 체크한 상담일지를 바탕으로 채웁니다.')}
- if(sChange)lines.push('[강점] '+(S.length?S.map(t=>'‘'+cut(t,24)+'’').join(', '):'모두 비움'));
- if(wChange)lines.push('[약점] '+(W.length?W.map(t=>'‘'+cut(t,24)+'’').join(', '):'모두 비움'));
+ const swLine=(name,sel,fill)=>'['+name+'] '+(sel.length?sel.map(t=>'‘'+cut(t,24)+'’').join(', '):(fill.length?'':'모두 비움'))+(fill.length?(sel.length?'\n   + ':'')+'체크한 상담일지에서 채움: '+fill.map(t=>'‘'+cut(t,30)+'’').join(', '):'')+(sel.length&&sel.length+fill.length<3?' (상담일지에서 더 찾을 내용이 없어 나머지 칸은 비워 둠)':'');
+ if(sChange)lines.push(swLine('강점',S,fillS));else if(noMore.includes('강점'))lines.push('[강점] 고른 '+S.length+'개 그대로 (빈칸을 채울 내용을 체크한 상담일지에서 더 찾지 못함)');
+ if(wChange)lines.push(swLine('약점',W,fillW));else if(noMore.includes('약점'))lines.push('[약점] 고른 '+W.length+'개 그대로 (빈칸을 채울 내용을 체크한 상담일지에서 더 찾지 못함)');
  if(sChange||wChange)lines.push('※ 넣은 강점·약점은 고정되어 다음 계획서에도 그대로 이어집니다.');
  if(!confirm('지금 재활계획서에 다음과 같이 넣습니다.\n\n'+lines.join('\n')+'\n\n계속할까요?'))return;
  bankRecordPlan(m,plan); // 바꾸기 전 내용도 보관함에 남긴다
  if(added.length||removed.length){const made=ruleGoalsFor(m,added);let goals=rows.map(r=>r._new!==undefined?made.get(bankKey(r._new)):r).filter(Boolean);plan.goals=fillPlanGoalSlots(goals)}
- if(sChange||wChange){if(sChange)plan.strength=arrN(S,3);if(wChange)plan.weakness=arrN(W,3);plan.swUses='1';plan.swSince=todayStr();plan.swPinned=true;swUnlocked.delete(m.id)}
+ if(sChange||wChange){if(sChange)plan.strength=arrN(S2,3);if(wChange)plan.weakness=arrN(W2,3);plan.swUses='1';plan.swSince=todayStr();plan.swPinned=true;swUnlocked.delete(m.id)}
  carryUI.sel=null;persist();syncPlanToEval(m);paint();carryMsg('지금 계획서에 넣었습니다. 내용을 확인한 뒤 ‘저장’을 누르세요.',true)}
 function saveCarryNext(m){const st=carryState(m);const c={long:null,strength:null,weakness:null,at:new Date().toISOString()};let any=false;
  for(const k of BANK_KINDS)if(st.touched[k]){c[k]=carryTexts(m,k);any=true}
@@ -4169,7 +4208,7 @@ async function runLocalAI(mode){
    improvePlanServiceDetails(plan);
    if(groundPlan(plan,groundCtx(target,[target.plan])))backfillGoals(plan,target); // v3.21.55: 다른 회원·예시의 사실 빼기
    extractPlanModels(plan,target);applyMainModel(plan,planModelUsed);plan.appliedModel=practiceModelId(planModelUsed)||mainModelOfPlan(plan);planModelUsed=plan.appliedModel;
-   {const fresh={strength:[...plan.strength],weakness:[...plan.weakness]};carryStrengths(target.plan,plan);applyCarrySW(target,plan,fresh)}carryNeeds(target.plan,plan);target.plan=plan;
+   {const fresh={strength:[...plan.strength],weakness:[...plan.weakness]};carryStrengths(target.plan,plan);applyCarrySW(target,plan,fresh);fillSWBlanks(target,plan,fresh)}carryNeeds(target.plan,plan);target.plan=plan;
    // 계획서만 다시 작성한 경우, 같은 계획을 평가 중인 평가서 목표에도 바로 반영한다(기존 계획 평가 모드는 제외).
    // (계획서만 작성: 평가서 연결은 마지막 반영 단계(commitAIDocuments)에서 한다)
   }else{
