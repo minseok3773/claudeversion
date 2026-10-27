@@ -15,7 +15,7 @@ const RESULT_TTL=24*60*60*1000,results=new Map(),down=new Map();
 // 실패한 모델은 잠시 건너뛴다(같은 실패로 매번 기다리지 않게). ‘다시 검색’은 이 기억을 무시하고 다시 시도한다.
 const DOWN_TTL={tier:30*60*1000,model:6*60*60*1000,key:30*60*1000,quota:10*60*1000,busy:5*60*1000,nosearch:30*60*1000,other:10*60*1000};
 const MESSAGES={
- tier:'지금 쓰는 Gemini 무료 등급에서는 구글 검색 연동이 막혀 있습니다. Google AI Studio에서 결제 정보를 등록해 유료 등급으로 바꾸면 매달 구글 검색 5,000회까지 무료로 쓸 수 있습니다.',
+ tier:'지금 쓰는 Gemini 무료 등급에서는 구글 검색 연동을 쓸 수 없습니다(구글 안내: 유료 결제 등급 필요). 기다려도 풀리지 않으니, Google AI Studio에서 결제 정보를 등록해 유료 등급으로 바꿔 주세요. 유료 등급은 매달 구글 검색 5,000회까지 무료입니다.',
  model:'이 API 키로는 구글 검색을 지원하는 Gemini 모델을 쓸 수 없습니다. Google AI Studio에서 결제 정보를 등록해 유료 등급으로 바꾸면 쓸 수 있습니다.',
  quota:'구글 검색 사용 한도에 도달했습니다. 잠시 뒤 다시 시도해 주세요.',
  busy:'구글 서버가 바빠 검색하지 못했습니다. 잠시 뒤 다시 시도해 주세요.',
@@ -33,7 +33,10 @@ function promptFor(topics,cats){
   '- 특정 회원의 이야기는 쓰지 않고 일반 원칙만 쓴다. 약 이름·용량 같은 의학적 지시는 쓰지 않는다.',
   '- 전체 2,000자 안쪽 한국어로 쓴다.'].join('\n')}
 function reasonOf(status,data){const e=data?.error||{};let t='';try{t=(String(e.status||'')+' '+String(e.message||'')+' '+JSON.stringify(e.details||[])).slice(0,4000)}catch{}
- if(status===429)return /search|grounding|limit:\s*0\b|"quotaValue"\s*:\s*"0"/i.test(t)?'tier':'quota';
+ // v3.21.61 보완: 무료 등급에서 구글 검색 연동을 켜면 구글이 바로 429로 막는다(구글 안내: 유료 결제 등급 필요). 이때 응답에 자세한 한도 정보가 없는 경우가 많아,
+ // 분·일 한도(0보다 큰 한도)가 분명히 적혀 있을 때만 ‘잠시 뒤 다시’로 보고, 나머지는 무료 등급 때문으로 본다.
+ if(status===429){if(/search|grounding|limit:\s*0\b|"quotaValue"\s*:\s*"0"|free[ _-]?tier/i.test(t))return 'tier';
+  return /PerMinute|per[ _-]?minute|PerDay|per[ _-]?day|\bRP[MD]\b|"quotaValue"\s*:\s*"[1-9]/i.test(t)?'quota':'tier'}
  if(status===404||/no longer available|is not found|not found for api version|deprecated|retired|shut\s*down/i.test(t))return 'model';
  if(/billing|paid tier|free tier|upgrade|grounding|google[_ ]?search|search tool|not available (?:on|in|for) (?:the )?free/i.test(t))return 'tier';
  if(status===401||status===403)return 'key';
@@ -50,7 +53,7 @@ async function ask(key,model,prompt,signal){
   // 온도는 기본값(구글 권장)을 쓰고, 생각(thinking)에 쓰는 몫을 고려해 출력 한도를 넉넉히 둔다.
   body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],tools:[{google_search:{}}],generationConfig:{maxOutputTokens:6000}})});
  const data=await r.json().catch(()=>null);
- if(!r.ok)return{ok:false,reason:reasonOf(r.status,data),status:r.status};
+ if(!r.ok)return{ok:false,reason:reasonOf(r.status,data),status:r.status,detail:(String(data?.error?.status||'')+' '+String(data?.error?.message||'')).replace(/[\u0000-\u001f]+/g,' ').trim().slice(0,200)};
  const c=data?.candidates?.[0];
  const text=tidy((Array.isArray(c?.content?.parts)?c.content.parts:[]).filter(p=>typeof p?.text==='string'&&!p.thought).map(p=>p.text).join(''),3200);
  const g=c?.groundingMetadata||{};
@@ -87,7 +90,7 @@ module.exports=async function research(req,res){
    const value={searched:true,model,topics:topics.map(id=>PRO.byId[id].name),categories:cats.map(c=>PSY[c]),text:r.text,queries:r.queries,sources:r.sources,suggestions:r.suggestions,at:new Date().toISOString(),privacy:'검색에는 고정 목록의 주제 이름·진단 분류만 씀(회원 정보 없음)'};
    if(results.size>200)results.clear();results.set(ck,{at:Date.now(),value});return send(res,200,value)}
   down.set(model,{until:Date.now()+(DOWN_TTL[r.reason]||DOWN_TTL.other),reason:r.reason});tried.push({model,reason:r.reason});
-  try{console.error('[research]',JSON.stringify({model,reason:r.reason,status:r.status}))}catch{}
+  try{console.error('[research]',JSON.stringify({model,reason:r.reason,status:r.status,google:r.detail||undefined}))}catch{}
  }
  const why=['tier','quota','busy','key','model','nosearch','other'].find(x=>tried.some(t=>t.reason===x))||'other';
  return send(res,200,{searched:false,why,message:MESSAGES[why],tried});
