@@ -2,7 +2,12 @@
 // Gemini Developer API: 접속코드 인증 및 요청량 제한 적용.
 // API 키는 서버 비공개 환경변수에만 저장하며, 외부 AI 입력/응답을 로그에 남기지 않는다.
 const {send,envStatus,postSameOrigin,jsonBody,sessionValid,allowRequest}=require('./_shared.cjs');
-const DEFAULT_MODEL='gemini-3.1-flash-lite';
+// v3.21.67: 기본 모델을 gemini-3.5-flash-lite로 바꿈(무료 등급, 구글이 3.1 Flash-Lite의 대체 모델로 지정).
+// Vercel 환경변수 GEMINI_MODEL을 넣으면 그 모델을 쓴다.
+const DEFAULT_MODEL='gemini-3.5-flash-lite';
+// Gemini 3.5 이후 모델은 temperature 값을 쓰지 않는다(구글 안내: 무시됨, 보내지 말 것). 그 전 모델(3.1 등)에는
+// 같은 상담일지로 쓸 때 문장이 들쭉날쭉하지 않도록 낮은 값을 그대로 보낸다.
+const keepsTemperature=m=>{const v=/^gemini-(\d+(?:\.\d+)?)-/.exec(String(m||''));return !v||Number(v[1])<3.5};
 const MODEL_RE=/^gemini-[a-z0-9.-]{4,90}$/;
 // v3.21.49: 구글이 모델을 종료·교체해 설정된 모델을 쓸 수 없게 되면(404 등),
 // 이 키로 쓸 수 있는 가장 최신 Flash-Lite(없으면 Flash) 정식 모델을 자동으로 찾아 이어서 쓴다.
@@ -92,7 +97,7 @@ module.exports=async function(req,res){
    body:JSON.stringify({
     systemInstruction:{parts:[{text:system}]},
     contents:[{role:'user',parts:[{text:prompt}]}],
-    generationConfig:{temperature:0.15,maxOutputTokens:maxTokens,responseMimeType:'application/json'}
+    generationConfig:{...(keepsTemperature(m)?{temperature:0.15}:{}),maxOutputTokens:maxTokens,responseMimeType:'application/json'}
    })
   });
   let up=await call(model);

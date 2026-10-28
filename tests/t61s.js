@@ -19,9 +19,9 @@ const goneErr=()=>reply(404,{error:{status:'NOT_FOUND',message:'This model model
 async function call(handler,body,o){const r=res();await handler(req(body,o),r);return r}
 (async()=>{
  console.log('[1] 유료 등급처럼 문서 작성 모델로 검색되는 경우');
- {const h=fresh();mock({'gemini-3.1-flash-lite':()=>reply(200,grounded())});
+ {const h=fresh();mock({'gemini-3.5-flash-lite':()=>reply(200,grounded())});
   const r=await call(h,{topics:['positive','negative','zzz'],categories:['psychosis','general'],force:false});
-  ok(r.statusCode===200&&r.json.searched===true&&r.json.model==='gemini-3.1-flash-lite','검색 성공',r.json);
+  ok(r.statusCode===200&&r.json.searched===true&&r.json.model==='gemini-3.5-flash-lite','검색 성공',r.json);
   ok(calls.length===1&&JSON.stringify(calls[0].body.tools)==='[{"google_search":{}}]','구글 검색 연동을 켜서 요청',calls[0]&&calls[0].body.tools);
   const p=calls[0].body.contents[0].parts[0].text;
   ok(/환청·망상·피해사고/.test(p)&&/무기력/.test(p)&&/조현병 등 정신병적 장애/.test(p),'검색 요청 글은 고정 목록의 주제·진단 분류로만',p.slice(0,200));
@@ -35,20 +35,20 @@ async function call(handler,body,o){const r=res();await handler(req(body,o),r);r
   const r3=await call(h,{topics:['positive','negative'],categories:['psychosis'],force:true});ok(r3.json.searched&&!r3.json.cached&&calls.length===1,'‘다시 검색’은 새로 검색');
  }
  console.log('[2] 무료 등급: 문서 작성 모델은 막히고 2.5 Flash-Lite로 검색되는 경우');
- {const h=fresh();mock({'gemini-3.1-flash-lite':tierErr,'gemini-2.5-flash-lite':()=>reply(200,grounded())});
+ {const h=fresh();mock({'gemini-3.5-flash-lite':tierErr,'gemini-2.5-flash-lite':()=>reply(200,grounded())});
   const r=await call(h,{topics:['sleep']});ok(r.json.searched===true&&r.json.model==='gemini-2.5-flash-lite','다음 모델로 검색',r.json.model);
-  ok(calls.map(c=>c.model).join()==='gemini-3.1-flash-lite,gemini-2.5-flash-lite','시도 순서',calls.map(c=>c.model));
+  ok(calls.map(c=>c.model).join()==='gemini-3.5-flash-lite,gemini-2.5-flash-lite','시도 순서',calls.map(c=>c.model));
  }
  console.log('[3] 검색을 쓸 수 없는 경우 — 이유와 조건을 알려 줌');
- {const h=fresh();mock({'gemini-3.1-flash-lite':tierErr,'gemini-2.5-flash-lite':goneErr,'gemini-2.5-flash':goneErr});
+ {const h=fresh();mock({'gemini-3.5-flash-lite':tierErr,'gemini-2.5-flash-lite':goneErr,'gemini-2.5-flash':goneErr});
   const r=await call(h,{topics:['meds']});ok(r.statusCode===200&&r.json.searched===false&&r.json.why==='tier','무료 등급 때문이라고 판단',r.json);
   ok(/결제 정보를 등록해 유료 등급/.test(r.json.message)&&/5,000회/.test(r.json.message),'필요한 조건 안내',r.json.message);
   ok(r.json.tried.map(t=>t.reason).join()==='tier,model,model','모델별 이유',r.json.tried);
   calls=[];const r2=await call(h,{topics:['meds']});ok(r2.json.searched===false&&calls.length===0,'잠시 동안은 같은 실패로 다시 기다리지 않음');
-  mock({'gemini-3.1-flash-lite':()=>reply(200,grounded())});const r3=await call(h,{topics:['meds'],force:true});ok(r3.json.searched===true,'결제 등록 뒤 ‘다시 검색’하면 바로 됨');
+  mock({'gemini-3.5-flash-lite':()=>reply(200,grounded())});const r3=await call(h,{topics:['meds'],force:true});ok(r3.json.searched===true,'결제 등록 뒤 ‘다시 검색’하면 바로 됨');
  }
  console.log('[4] 검색 없이 답하면 쓰지 않음 · 과부하');
- {const h=fresh();mock({'gemini-3.1-flash-lite':()=>reply(200,{candidates:[{content:{parts:[{text:'일반 원칙 답'}]}}]}),'gemini-2.5-flash-lite':()=>reply(503,{error:{status:'UNAVAILABLE',message:'overloaded'}}),'gemini-2.5-flash':()=>reply(200,grounded())});
+ {const h=fresh();mock({'gemini-3.5-flash-lite':()=>reply(200,{candidates:[{content:{parts:[{text:'일반 원칙 답'}]}}]}),'gemini-2.5-flash-lite':()=>reply(503,{error:{status:'UNAVAILABLE',message:'overloaded'}}),'gemini-2.5-flash':()=>reply(200,grounded())});
   const r=await call(h,{topics:['work']});ok(r.json.searched===true&&r.json.model==='gemini-2.5-flash','검색 근거가 없는 답은 건너뛰고 다음 모델',r.json.model);
   const h2=fresh();mock({'*':()=>reply(503,{error:{status:'UNAVAILABLE',message:'overloaded'}})});const r2=await call(h2,{topics:['work']});ok(r2.json.searched===false&&r2.json.why==='busy'&&/바빠/.test(r2.json.message),'모두 과부하면 잠시 뒤 다시',r2.json);
  }
@@ -62,9 +62,9 @@ async function call(handler,body,o){const r=res();await handler(req(body,o),r);r
   ok((await call(h,{topics:['sleep']},{method:'GET'})).statusCode===405,'POST만');
  }
  console.log('[6] 무료 등급의 구글 검색 막힘(자세한 정보 없는 429)과 진짜 분당 한도 구별');
- {const h=fresh();mock({'gemini-3.1-flash-lite':()=>reply(429,{error:{code:429,status:'RESOURCE_EXHAUSTED',message:'Resource has been exhausted (e.g. check quota).'}}),'gemini-2.5-flash-lite':goneErr,'gemini-2.5-flash':goneErr});
+ {const h=fresh();mock({'gemini-3.5-flash-lite':()=>reply(429,{error:{code:429,status:'RESOURCE_EXHAUSTED',message:'Resource has been exhausted (e.g. check quota).'}}),'gemini-2.5-flash-lite':goneErr,'gemini-2.5-flash':goneErr});
   const r=await call(h,{topics:['work']});ok(r.json.why==='tier'&&/기다려도 풀리지 않으니/.test(r.json.message)&&/유료 결제 등급 필요/.test(r.json.message),'자세한 정보 없는 429 + 2.5 모델 없음 → 무료 등급 때문(결제 필요)',r.json);
-  const h2=fresh();mock({'gemini-3.1-flash-lite':()=>reply(429,{error:{code:429,status:'RESOURCE_EXHAUSTED',message:'Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_requests, limit: 15',details:[{'@type':'type.googleapis.com/google.rpc.QuotaFailure',violations:[{quotaId:'GenerateRequestsPerMinutePerProjectPerModel',quotaValue:'15'}]},{'@type':'type.googleapis.com/google.rpc.RetryInfo',retryDelay:'31s'}]}}),'gemini-2.5-flash-lite':goneErr,'gemini-2.5-flash':goneErr});
+  const h2=fresh();mock({'gemini-3.5-flash-lite':()=>reply(429,{error:{code:429,status:'RESOURCE_EXHAUSTED',message:'Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_requests, limit: 15',details:[{'@type':'type.googleapis.com/google.rpc.QuotaFailure',violations:[{quotaId:'GenerateRequestsPerMinutePerProjectPerModel',quotaValue:'15'}]},{'@type':'type.googleapis.com/google.rpc.RetryInfo',retryDelay:'31s'}]}}),'gemini-2.5-flash-lite':goneErr,'gemini-2.5-flash':goneErr});
   const r2=await call(h2,{topics:['work']});ok(r2.json.why==='quota'&&/잠시 뒤 다시/.test(r2.json.message),'분당 한도가 적힌 429 → 잠시 뒤 다시',r2.json);
  }
  done();

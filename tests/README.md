@@ -51,6 +51,7 @@ node tests/run-all.js t66 t64b   # 이름으로 골라서
 | `t66a` | v3.21.66 — 서버: 구글 검색이 안 되면 무료 공개 논문 검색(Europe PMC·Crossref)으로 대신 찾기 |
 | `t66b` | v3.21.66 — 화면: 구글 검색 대신 공개 논문 검색으로 찾은 최신 논문 표시·AI 반영, ‘최신 전문자료 찾기’ 기본 켬 |
 | `t66c` | v3.21.66 — ‘Gemini 연결 진단’ 버튼: 어느 단계에서 막혔는지 보여 줌 |
+| `t67a` | v3.21.67 — 기본 모델 gemini-3.5-flash-lite, 3.5 이후 모델에는 temperature를 보내지 않음 |
 
 도움 파일: `h.js`(가상 브라우저로 프로그램 열기), `fakeai.js`(가짜 Gemini 답), `fix57.js`·`fix58.js`·`fix64.js`·`hwpfix64.js`(가상 회원·문서 자료),
 `pdfapi.js`(PDF 글자 뽑기 서버 함수 호출), `pdfs/`(가상 내용으로 만든 PDF).

@@ -12,7 +12,7 @@ const PSY=Object.freeze({psychosis:'조현병 등 정신병적 장애',bipolar:'
 // 1) 관리자가 따로 정한 검색용 모델(GEMINI_SEARCH_MODEL) 2) 문서 작성 모델(유료 등급이면 매달 검색 5,000회 무료)
 // 3) Gemini 2.5 Flash-Lite·Flash(무료 등급에서도 하루 500회까지 검색되지만, 예전에 이 모델을 써 본 키만 쓸 수 있음)
 function models(){const v=x=>String(x||'').trim();
- return [...new Set([v(process.env.GEMINI_SEARCH_MODEL),v(process.env.GEMINI_MODEL)||'gemini-3.1-flash-lite','gemini-2.5-flash-lite','gemini-2.5-flash'].filter(x=>MODEL_RE.test(x)))]}
+ return [...new Set([v(process.env.GEMINI_SEARCH_MODEL),v(process.env.GEMINI_MODEL)||'gemini-3.5-flash-lite','gemini-2.5-flash-lite','gemini-2.5-flash'].filter(x=>MODEL_RE.test(x)))]}
 const RESULT_TTL=24*60*60*1000,SCHOLARLY_TTL=60*60*1000,results=new Map(),down=new Map();
 // 실패한 모델은 잠시 건너뛴다(같은 실패로 매번 기다리지 않게). ‘다시 검색’은 이 기억을 무시하고 다시 시도한다.
 const DOWN_TTL={tier:30*60*1000,model:6*60*60*1000,key:30*60*1000,quota:10*60*1000,busy:5*60*1000,nosearch:30*60*1000,other:10*60*1000};

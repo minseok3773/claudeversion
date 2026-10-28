@@ -84,7 +84,7 @@ function mock({gemini=tierErr,epmc=()=>json(EPMC()),crossref=()=>json(CROSSREF()
   ok(!/x-goog-api-key|test-key/.test(r.body)&&!calls.filter(c=>c.host!=='generativelanguage.googleapis.com').some(c=>JSON.stringify(c.opts.headers||{}).includes('test-key')),'API 키는 구글에만, 응답·논문 검색에는 없음');
   calls=[];const r2=await call(h,{topics:['social'],categories:['psychosis']});ok(r2.json.searched&&r2.json.cached===true&&calls.length===0,'같은 주제는 한 시간 동안 기억한 결과',calls.length);
   calls=[];const r3=await call(h,{topics:['work']});ok(r3.json.provider==='scholarly'&&calls.every(c=>c.host!=='generativelanguage.googleapis.com'),'구글 검색이 막힌 모델은 잠시 건너뛰고 바로 논문 검색',calls.map(c=>c.host));
-  mock({gemini:grounded});const r4=await call(h,{topics:['social'],categories:['psychosis'],force:true});ok(r4.json.searched&&!r4.json.provider&&r4.json.model==='gemini-3.1-flash-lite','‘다시 검색’ 때 구글 검색이 되면 구글 결과',r4.json);
+  mock({gemini:grounded});const r4=await call(h,{topics:['social'],categories:['psychosis'],force:true});ok(r4.json.searched&&!r4.json.provider&&r4.json.model==='gemini-3.5-flash-lite','‘다시 검색’ 때 구글 검색이 되면 구글 결과',r4.json);
  }
  console.log('[6] 둘 다 안 되면 이유를 알려 줌');
  {const h=fresh();mock({epmc:()=>json({},503),crossref:()=>json({},503)});const r=await call(h,{topics:['meds']});

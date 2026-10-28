@@ -1,7 +1,7 @@
 'use strict';
 // v2.1: 기록 관리는 서버 없이 동작. AI는 사용자가 동의한 경우에만 라이브러리·모델을 외부에서 내려받음.
 const KEY='sehuim_rehab_offline_v1';
-const APP_RELEASE='3.21.66-scholarly-diag';
+const APP_RELEASE='3.21.67-flash-lite-35';
 const $=(s,root=document)=>root.querySelector(s);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s??'').trim();
