@@ -25,7 +25,7 @@ function boot(dir,{stored,confirmFn,ai,storage,pdf,aiStatus,guidance,research}={
  const errors=[];w.addEventListener('error',e=>errors.push(String(e.message||e.error)));
  if(storage)for(const [k,v] of Object.entries(storage))w.localStorage.setItem(k,v);
  if(stored)w.localStorage.setItem(KEY,JSON.stringify(stored));
- for(const f of ['hwp-paste.js','doctor-letter.js','pro-knowledge.js']){const hp=path.join(dir,f);if(fs.existsSync(hp))w.eval(fs.readFileSync(hp,'utf8'))}
+ for(const f of ['hwp-paste.js','doctor-letter.js','pro-knowledge.js','document-check.js']){const hp=path.join(dir,f);if(fs.existsSync(hp))w.eval(fs.readFileSync(hp,'utf8'))}
  if(guidance!==undefined)w.__guidance=guidance;
  const src=fs.readFileSync(path.join(dir,'app.js'),'utf8')+'\n;window.__ev=(s)=>eval(s);';
  w.eval(src);

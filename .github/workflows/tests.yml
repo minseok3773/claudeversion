@@ -28,7 +28,7 @@ jobs:
           node-version: '22'
       - name: 문법 확인
         run: |
-          for f in app.js hwp-paste.js doctor-letter.js pro-knowledge.js api/*.js api/*.cjs tests/*.js; do node --check "$f"; done
+          for f in app.js hwp-paste.js doctor-letter.js pro-knowledge.js document-check.js api/*.js api/*.cjs tests/*.js; do node --check "$f"; done
       - name: 필요한 프로그램 설치 (시험용 jsdom은 배포에 넣지 않음)
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
