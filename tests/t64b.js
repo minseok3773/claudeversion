@@ -17,7 +17,7 @@ const P=F.plan,E=F.evaluation;
   ok(p.memberVoice===P.voice.join('\n')&&p.familyNeed===P.fneed.join('\n')&&p.managerNeed===P.manager.join('\n'),'욕구 칸');
   ok(P.psychoText.every((x,i)=>p.psycho[i]===x),'심리사회 8칸');
   ok(P.strength.every((x,i)=>p.strength[i]===x)&&P.weakness.every((x,i)=>p.weakness[i]===x),'강점 3·약점 3',[p.strength,p.weakness]);
-  ok(P.goals.every((g,i)=>['long','short','plan','activity','target'].every(k=>p.goals[i][k]===g[k]))&&p.goals.length===4&&p.goals.every(g=>g.id),'목표 3개(4칸 유지, 목표 ID 있음)');
+  ok(P.goals.every((g,i)=>['long','short','plan','activity','target'].every(k=>p.goals[i][k]===g[k]))&&p.goals.length===3&&p.goals.every(g=>g.id),'목표 3개(3칸, 목표 ID 있음)');
   ok(p.services.length===2&&p.services[1].resource==='인근 공원','재활 활동 계획 2줄');
   ok(p.opinion===P.opinion,'사례관리자 의견');
   ok(p.needSrc.member==='manual'&&p.needSrc.family==='manual','붙여 넣은 욕구 기술은 자동 작성으로 덮지 않음',p.needSrc);

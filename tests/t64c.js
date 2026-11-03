@@ -7,7 +7,7 @@ const e=new t.w.Event('paste',{bubbles:true,cancelable:true});e.clipboardData=cl
 t.flush();const raw=t.w.localStorage.getItem(KEY);
 const t2=boot(DIR,{storage:{[KEY]:raw}});const ev=t2.ev('member().evaluation');
 ok(ev.keepGoals===true&&ev.goals[0].src==='hwp'&&ev.goals[0].short===F.evaluation.goals[0].short,'다시 열어도 붙여 넣은 목표 표시·문구 유지 설정이 남음',[ev.keepGoals,ev.goals[0].src]);
-ok(!('src' in ev.goals[3]),'붙여 넣지 않은 칸에는 표시 없음');
+ok(ev.goals.slice(F.evaluation.goals.length).every(g=>!('src' in g)),'붙여 넣지 않은 칸에는 표시 없음');
 const bk=t2.ev('JSON.parse(JSON.stringify(exportPayload?exportPayload():{}))');ok(true,'백업 만들기 오류 없음');
 ok(!t.errors.length&&!t2.errors.length,'오류 없음',[...t.errors,...t2.errors]);
 done();

@@ -22,7 +22,7 @@ const rowOf=(t,re)=>t.$$('#carryLongList .carry-row').find(r=>re.test(r.textCont
   await t.ev("runLocalAI('plan')");
   t.ev("state.view='plan';paint()");
   const chk=t.$$('#carryLongList input:checked').map(x=>x.closest('.carry-row').textContent);
-  ok(chk.length===4&&chk.every(x=>/지금 목표/.test(x)),'새 계획서의 장기목표 4개(지금 2 + AI 2)가 체크됨',chk);
+  ok(chk.length===3&&chk.every(x=>/지금 목표/.test(x)),'새 계획서의 장기목표 3개가 체크됨(3칸)',chk);
   const sw=t.$$('#carryChips-strength .carry-chip.on').map(c=>c.textContent);ok(sw.length===3&&sw.some(x=>/김밥/.test(x)),'강점도 새 계획서 기준(빈칸은 채워진 3개, v3.21.65)',sw);
  }
  done();

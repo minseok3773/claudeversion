@@ -33,7 +33,7 @@ const rowOf=(t,re)=>t.$$('#carryLongList .carry-row').find(r=>re.test(r.textCont
   // 체크를 풀면 두 줄 다 빠짐(대신 넣을 것이 없을 때)
   t.ev('carryUI.sel=null;paint()');t.change(rowOf(t,/생활리듬/).querySelector('input'),false);t.click('[data-act="carry-now"]');
   const conf=t.logs.filter(l=>l[0]==='confirm').pop()[1];ok(/뺌: 목표 1/.test(conf)&&/뺌: 목표 2/.test(conf),'확인 창에 두 줄 모두',conf);
-  ok(IDS(t.ev("member().plan.goals"))==='g2,g3'&&t.ev('member().plan.goals.length')===4,'두 줄 빠짐(4칸 유지)',t.ev("member().plan.goals.map(g=>g.id)"));
+  ok(IDS(t.ev("member().plan.goals"))==='g2,g3'&&t.ev('member().plan.goals.length')===3,'두 줄 빠짐(3칸 유지)',t.ev("member().plan.goals.map(g=>g.id)"));
  }
  console.log('[4] ‘확인 필요’ 장기목표 줄과 장기목표 없는 줄은 건드리지 않음');
  {const st=stored57();const p=st.members[0].plan;p.goals.push({id:'gx',long:'장기목표 확인 필요',short:'1. 무엇인가 함.',plan:'',activity:'',target:'',src:'',longSince:''},{id:'gy',long:'',short:'1. 단기목표만 있음.',plan:'',activity:'',target:'',src:'',longSince:''});

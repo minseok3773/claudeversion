@@ -16,7 +16,7 @@ const fast=t=>{const o=t.w.setTimeout.bind(t.w);t.w.setTimeout=(fn,ms,...r)=>o(f
   ok(pIds.length>=3&&eIds.length===pIds.length&&eIds.every(id=>pIds.includes(id)),'평가서 목표 = 새 계획서 목표',{pIds,eIds});
   ok(e.pastPlan!==true,'새 계획서 기준 평가(이전 계획 평가 아님)');
   ok(t.ev('member().planArchive[0].plan.goals.map(g=>g.id).slice(0,3).join()')===before.goals.slice(0,3).map(g=>g.id).join(),'이전 계획서 보관');
-  ok(p.goals.length===4&&e.goals.length===4,'계획서·평가서 모두 4칸',[p.goals.length,e.goals.length]);
+  ok(p.goals.length===3&&e.goals.length===3,'계획서·평가서 모두 3칸',[p.goals.length,e.goals.length]);
   const al=t.logs.filter(l=>l[0]==='alert').pop()?.[1]||'';ok(/재활계획서/.test(al)&&/평가서/.test(al)&&!/실패|오류/.test(al),'완료 안내',al.slice(0,200));
   ok(!t.errors.length,'오류 없음',t.errors);
  }
@@ -48,19 +48,19 @@ const fast=t=>{const o=t.w.setTimeout.bind(t.w);t.w.setTimeout=(fn,ms,...r)=>o(f
   await t.ev("runLocalAI('plan')");ok(t.ev('member().plan.appliedModel')==='empowerment','AI가 고른 임파워먼트모델',t.ev('member().plan.appliedModel'));
  }
  console.log('[5] 근거 있는 영역이 빠지면 한 번 더 요청 — AI가 쓴 목표를 씀');
- {const ai=makeAI();const t=boot(DIR,{stored:stored57(),ai:b=>{const st=stepOf(b.prompt);if(st==='?'&&/금전/.test(b.prompt))return{goals:[{goalId:'',long:'용돈을 계획적으로 사용함.',short:['한 달 용돈 계획을 세움.','계획 안에서 군것질 지출을 줄임.'],plan:['용돈 계획 세우기를 도울 계획임.','군것질 지출을 함께 돌아볼 계획임.'],activity:['용돈 계획 세우기','지출 돌아보기'],target:['월 1회 계획','군것질 주 2회 이하'],src:[4]}]};return ai(b)}});
+ {const ai=makeAI();const st57=stored57();st57.members[0].plan.goals=st57.members[0].plan.goals.slice(0,2);const t=boot(DIR,{stored:st57,ai:b=>{const st=stepOf(b.prompt);if(st==='?'&&/금전/.test(b.prompt))return{goals:[{goalId:'',long:'용돈을 계획적으로 사용함.',short:['한 달 용돈 계획을 세움.','계획 안에서 군것질 지출을 줄임.'],plan:['용돈 계획 세우기를 도울 계획임.','군것질 지출을 함께 돌아볼 계획임.'],activity:['용돈 계획 세우기','지출 돌아보기'],target:['월 1회 계획','군것질 주 2회 이하'],src:[4]}]};return ai(b)}});
   await t.ev("runLocalAI('plan')");const sup=t.prompts.filter(b=>stepOf(b.prompt)==='?');ok(sup.length===1,'보완 요청 1번',sup.length);
-  const p=t.ev('member().plan');ok(F(p.goals).length===4&&/용돈을 계획적으로/.test(p.goals[3].long),'4번째 목표 = AI 보완 목표',F(p.goals).map(g=>g.long));
+  const p=t.ev('member().plan');ok(F(p.goals).length===3&&F(p.goals).some(g=>/용돈을 계획적으로/.test(g.long)),'빈 3번째 칸 = AI 보완 목표',F(p.goals).map(g=>g.long));
  }
  console.log('[6] 고른 장기목표는 엄격 연결, 남은 칸은 상담일지 근거로 채움(v3.21.62 담당자 요청)');
  {const t=boot(DIR,{stored:stored57({carry:{long:['개인위생에 대한 자기관리능력을 향상시켜 건강한 생활습관을 유지함.'],strength:null,weakness:null,at:'2026-10-25T00:00:00Z'}}),ai:makeAI()});
   await t.ev("runLocalAI('plan')");const p=t.ev('member().plan');ok(F(p.goals).length>1&&p.goals[0].id==='g3'&&F(p.goals).filter(g=>g.id==='g3').length===1,'고른 1개(g3 유지) + 남은 칸 채움',F(p.goals).map(g=>g.id+':'+g.long.slice(0,10)));
 
-  ok((t.prompts.find(b=>stepOf(b.prompt)==='?')||{prompt:''}).prompt.includes('남은 칸은 체크한 상담일지에서 근거가 있고'),'고른 목표가 4칸보다 적으면 남은 칸 보완 요청');
+  ok((t.prompts.find(b=>stepOf(b.prompt)==='?')||{prompt:''}).prompt.includes('남은 칸은 체크한 상담일지에서 근거가 있고'),'고른 목표가 3칸보다 적으면 남은 칸 보완 요청');
  }
  {const ai=makeAI();const t=boot(DIR,{stored:stored57({carry:{long:['개인위생에 대한 자기관리능력을 향상시켜 건강한 생활습관을 유지함.','규칙적인 생활리듬과 자발적인 일상활동 참여능력을 향상시킴.'],strength:null,weakness:null,at:'2026-10-25T00:00:00Z'}}),ai:b=>{const r=ai(b);if(stepOf(b.prompt)==='B')r.goals=r.goals.filter(g=>g.goalId!=='g1');return r}});
   await t.ev("runLocalAI('plan')");const sup=t.prompts.find(b=>stepOf(b.prompt)==='?');ok(sup&&/초안이 없는 goalId의 단기목표·재활계획·세부활동·성과목표를 먼저 쓰고/.test(sup.prompt)&&/남은 칸은 체크한 상담일지에서 근거가 있고/.test(sup.prompt),'초안이 빠진 고른 목표를 먼저, 그다음 남은 칸 보완 요청',sup&&sup.prompt.slice(0,80));
-  const p=t.ev('member().plan');ok(['g1','g3'].every(id=>F(p.goals).some(g=>g.id===id&&/^1\./.test(g.short)))&&F(p.goals).length<=4,'고른 2개 모두 단기목표 있음(빠진 것은 규칙 기반) + 남은 칸 채움',F(p.goals).map(g=>g.id+':'+g.short.slice(0,15)));
+  const p=t.ev('member().plan');ok(['g1','g3'].every(id=>F(p.goals).some(g=>g.id===id&&/^1\./.test(g.short)))&&F(p.goals).length<=3,'고른 2개 모두 단기목표 있음(빠진 것은 규칙 기반) + 남은 칸 채움',F(p.goals).map(g=>g.id+':'+g.short.slice(0,15)));
  }
  console.log('[7] 작성 중 회원을 바꾸면 결과를 넣지 않음');
  {let T;const ai=makeAI();const t=boot(DIR,{stored:stored58(),ai:b=>{if(stepOf(b.prompt)==='B')T.ev("state.memberId='mem-b'");return ai(b)}});T=t;
