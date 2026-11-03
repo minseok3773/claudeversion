@@ -16,7 +16,7 @@ const chipOf=(t,kind,re)=>t.$$('#carryChips-'+kind+' .carry-chip').find(c=>re.te
   const conf=t.logs.filter(l=>l[0]==='confirm').pop()?.[1]||'';
   ok(/새로 넣음: ‘합리적인 금전사용/.test(conf)&&/뺌: 목표 3/.test(conf)&&/그대로 둠: 목표 1, 2/.test(conf),'확인 창에 바뀌는 내용',conf);
   const p=t.ev('member().plan');
-  ok(p.goals.length===4&&F(p.goals).length===3,'목표 4칸 중 3개 작성',p.goals.length);
+  ok(p.goals.length===3&&F(p.goals).length===3,'목표 3칸 모두 작성',p.goals.length);
   ok(p.goals[0].id==='g1'&&p.goals[1].id==='g2'&&p.goals[0].short===before.goals[0].short&&p.goals[1].plan===before.goals[1].plan,'목표 1·2는 그대로');
   const g=p.goals[2];
   ok(/금전사용/.test(g.long)&&g.id!=='g3'&&g.id!=='g0','목표 3 자리에 금전 장기목표(새 ID)',g);

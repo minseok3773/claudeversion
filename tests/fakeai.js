@@ -6,7 +6,7 @@ const AREA=[
  [/관계|대인/, {short:['사회기술훈련에 월 2회 참여함.','동료에게 먼저 인사함.'],plan:['사회기술훈련 참여를 도울 계획임(인지행동모델)','동료와 인사 나누기를 연습할 계획임(행동주의모델)'],target:['사회기술훈련 월 2회 참여','동료에게 먼저 인사 주 3회 이상']}],
  [/금전|용돈|지출/, {short:['용돈 기입장을 주 1회 함께 확인함.','군것질 지출을 주 2회 이하로 줄임.'],plan:['용돈 기입장을 주 1회 함께 확인할 계획임(과제중심모델)','군것질 지출을 함께 점검할 계획임(문제중심모델)'],target:['용돈 기입장 확인 주 1회','군것질 지출 주 2회 이하']}]];
 function pickArea(long){for(const [re,v] of AREA)if(re.test(long))return v;return AREA[0][1]}
-function stepOf(prompt){if(/\[누락 보완 — 초안 대조\]/.test(prompt))return 'A2';if(/\[실천모델 평가\]/.test(prompt))return 'C';if(/\[현재 승인·작성된 장기목표/.test(prompt))return 'B';if(/상담일지의 진술·관찰·의사 소견을 종합하여/.test(prompt))return 'A';return '?'}
+function stepOf(prompt){if(/\[문항 점검 — 초안 고쳐 쓰기\]/.test(prompt))return 'A2';if(/\[실천모델 평가\]/.test(prompt))return 'C';if(/\[현재 승인·작성된 장기목표/.test(prompt))return 'B';if(/상담일지의 진술·관찰·의사 소견을 종합하여/.test(prompt))return 'A';return '?'}
 function makeAI({newLongs=[]}={}){return body=>{const p=String(body.prompt||'');const st=stepOf(p);
  if(st==='A'||st==='A2')return{memberDialogue:'“걸으니까 기분이 좋다”',familyDialogue:'“꾸준히 운동했으면 좋겠어요.”',memberNeed:'- 산책을 꾸준히 하기를 희망함.',familyNeed:'- 가족은 회원이 건강하게 지내기를 희망함.',
   managerItems:[{title:'생활리듬 유지',reason:'산책 프로그램 참여를 거부한 날이 있음.',src:[1,5]},{title:'금전관리',reason:'용돈 기입장 작성을 어려워함.',src:[4]}],

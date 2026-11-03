@@ -40,8 +40,8 @@ const DIR=process.argv[2]||require('path').resolve(__dirname,'..');
  const chipsS=t.$$('#carryChips-strength .carry-chip');ok(chipsS.length===5&&chipsS.filter(c=>c.classList.contains('on')).length===2,'강점 칩 5개 중 지금 계획서 2개 골라짐',chipsS.map(c=>c.textContent));
  // 최대 개수
  for(const cb of t.$$('#carryLongList input:not(:checked)'))t.change(cb,true);
- ok(t.$$('#carryLongList input:checked').length===4,'장기목표는 4개까지만 체크됨');
- ok(/4개까지/.test(t.$('#carryMsg').textContent),'넘으면 안내',t.$('#carryMsg').textContent);
+ ok(t.$$('#carryLongList input:checked').length===3,'장기목표는 3개까지만 체크됨(v3.21.71 3칸)');
+ ok(/3개까지/.test(t.$('#carryMsg').textContent),'넘으면 안내',t.$('#carryMsg').textContent);
  console.log('[4] 인쇄 사본에 불러오기 칸·칩이 없음');
  t.ev('preparePrint()');const sheet=t.$('#printSheet');ok(sheet&&!sheet.querySelector('.carry-panel')&&!/이전 계획서 불러오기/.test(sheet.textContent),'인쇄 사본에 없음');
  ok(t.errors.length===0,'화면 오류 없음',t.errors);
