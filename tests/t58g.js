@@ -83,7 +83,7 @@ const fast=t=>{const o=t.w.setTimeout.bind(t.w);t.w.setTimeout=(fn,ms,...r)=>o(f
   ok(JSON.stringify(t.ev("member().plan"))===before&&!t.prompts.length,'취소하면 AI에 보내지 않음');
  }
  console.log('[10] AI 결과에 다른 회원의 문장이 섞이면 넣지 않음');
- {const ai=makeAI();const t=boot(DIR,{stored:stored58(),ai:b=>{const r=ai(b);if(stepOf(b.prompt)==='A')r.opinion='- 텃밭 활동에 참여하여 상추와 방울토마토 모종을 심고 물을 주었으며 다음 주 화요일 오전에 다시 와서 자란 모습을 사진으로 찍어 동료들에게 보여 주겠다고 함.';return r}});
+ {const ai=makeAI();const t=boot(DIR,{stored:stored58(),ai:b=>{const r=ai(b);if(['A','A2'].includes(stepOf(b.prompt)))r.opinion='- 텃밭 활동에 참여하여 상추와 방울토마토 모종을 심고 물을 주었으며 다음 주 화요일 오전에 다시 와서 자란 모습을 사진으로 찍어 동료들에게 보여 주겠다고 함.';return r}});
   t.ev('state.members[1].notes.forEach((n,i)=>updateNoteBody(state.members[1],i))');
   const before=JSON.stringify(t.ev("member().plan"));await t.ev("runLocalAI('plan')");
   ok(JSON.stringify(t.ev("member().plan"))===before,'계획서 그대로');
