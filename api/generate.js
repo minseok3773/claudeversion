@@ -9,6 +9,12 @@ const DEFAULT_MODEL='gemini-3.5-flash-lite';
 // 같은 상담일지로 쓸 때 문장이 들쭉날쭉하지 않도록 낮은 값을 그대로 보낸다.
 const keepsTemperature=m=>{const v=/^gemini-(\d+(?:\.\d+)?)-/.exec(String(m||''));return !v||Number(v[1])<3.5};
 const MODEL_RE=/^gemini-[a-z0-9.-]{4,90}$/;
+// v3.21.70: 답 길이 한도를 4,500 → 16,000토큰으로 늘림. Gemini 3 계열은 '생각(thinking)'에 쓴 토큰도 이 한도 안에서 쓰므로,
+// 한도가 낮으면 생각하느라 한도를 다 쓰고 실제 답(계획서 문장)이 짧아지거나 중간에 잘렸음. 무료 등급 모델의 출력 한도(65,536) 안임.
+const MAX_OUT=16000;
+// 생각 깊이(선택): Vercel 환경변수 GEMINI_THINKING_LEVEL = minimal | low | medium | high. 넣지 않으면 모델 기본값을 쓴다.
+const THINK_RE=/^(minimal|low|medium|high)$/;
+const thinksByLevel=m=>{const v=/^gemini-(\d+(?:\.\d+)?)-/.exec(String(m||''));return !!v&&Number(v[1])>=3};
 // v3.21.49: 구글이 모델을 종료·교체해 설정된 모델을 쓸 수 없게 되면(404 등),
 // 이 키로 쓸 수 있는 가장 최신 Flash-Lite(없으면 Flash) 정식 모델을 자동으로 찾아 이어서 쓴다.
 // 찾은 모델은 서버가 켜져 있는 동안 기억하고, 관리자가 GEMINI_MODEL을 바꾸면 다시 찾는다.
@@ -81,27 +87,31 @@ module.exports=async function(req,res){
  const system=typeof b?.system==='string'?b.system:'';
  const prompt=typeof b?.prompt==='string'?b.prompt:'';
  const maxTokens=Number(b?.maxTokens);
- if(system.length<10||system.length>4000||prompt.length<10||prompt.length>110000||!Number.isInteger(maxTokens)||maxTokens<100||maxTokens>4500)
+ if(system.length<10||system.length>4000||prompt.length<10||prompt.length>110000||!Number.isInteger(maxTokens)||maxTokens<100||maxTokens>MAX_OUT)
   return send(res,400,{error:{message:'AI 요청 자료의 길이 또는 형식이 올바르지 않습니다.',code:'BAD_INPUT'}});
  const configuredModel=(process.env.GEMINI_MODEL||DEFAULT_MODEL).trim();
  if(!MODEL_RE.test(configuredModel))return send(res,503,{error:{message:'Gemini 모델 설정이 올바르지 않습니다.',code:'MODEL_CONFIG_ERROR'}});
  let model=autoModel.from===configuredModel&&autoModel.to?autoModel.to:configuredModel;
- const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),55000);
+ const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),110000); // v3.21.70: 긴 답을 쓸 시간 확보(vercel.json maxDuration 120초)
  try{
   // v3.21.54: 붙여넣을 때 섞인 공백·줄바꿈·보이지 않는 문자·한글을 뺀다(이런 글자가 있으면 구글에 요청 자체를 보내지 못함).
   const key=String(process.env.GEMINI_API_KEY||'').replace(/[^\x21-\x7E]/g,'');
   const t0=Date.now();
+  const think=String(process.env.GEMINI_THINKING_LEVEL||'').trim().toLowerCase();
+  let useThink=THINK_RE.test(think);
   const call=m=>fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(m)+':generateContent',{
    method:'POST',signal:ctrl.signal,
    headers:{'x-goog-api-key':key,'content-type':'application/json'},
    body:JSON.stringify({
     systemInstruction:{parts:[{text:system}]},
     contents:[{role:'user',parts:[{text:prompt}]}],
-    generationConfig:{...(keepsTemperature(m)?{temperature:0.15}:{}),maxOutputTokens:maxTokens,responseMimeType:'application/json'}
+    generationConfig:{...(keepsTemperature(m)?{temperature:0.15}:{}),maxOutputTokens:maxTokens,responseMimeType:'application/json',...(useThink&&thinksByLevel(m)?{thinkingConfig:{thinkingLevel:think}}:{})}
    })
   });
   let up=await call(model);
   let data=await up.json().catch(()=>null);
+  // 이 모델이 생각 깊이 설정을 받지 않으면(400) 설정을 빼고 한 번 더 보낸다.
+  if(!up.ok&&up.status===400&&useThink&&/thinking/i.test(String(data?.error?.message||''))){useThink=false;up=await call(model);data=await up.json().catch(()=>null)}
   if(!up.ok&&modelGone(up.status,data)){
    const next=await findLatestModel(key,ctrl.signal).catch(()=>'');
    if(next&&next!==model){autoModel={from:configuredModel,to:next};model=next;up=await call(model);data=await up.json().catch(()=>null)}
@@ -148,7 +158,7 @@ module.exports=async function(req,res){
    const message=`Gemini가 답을 만들지 않았습니다(${why}). `+(safety?'상담일지의 일부 표현이 구글 안전 기준에 걸렸을 수 있습니다. 체크한 상담일지를 줄이거나 표현을 바꿔 다시 시도해 주세요.':fin==='MAX_TOKENS'?'답이 길이 제한에 걸렸습니다. 다시 시도해 주세요.':'잠시 뒤 다시 시도해 주세요.');
    return send(res,safety?422:502,{error:{message,code:safety?'SAFETY_BLOCKED':'EMPTY_RESPONSE'}});
   }
-  const u=data?.usageMetadata||{};const usage=(Number.isFinite(u.totalTokenCount)&&u.totalTokenCount>=0)?{input:Number(u.promptTokenCount)||0,output:Number(u.candidatesTokenCount)||0,total:Number(u.totalTokenCount)}:null;
+  const u=data?.usageMetadata||{};const usage=(Number.isFinite(u.totalTokenCount)&&u.totalTokenCount>=0)?{input:Number(u.promptTokenCount)||0,output:Number(u.candidatesTokenCount)||0,thinking:Number(u.thoughtsTokenCount)||0,total:Number(u.totalTokenCount)}:null;
   return send(res,200,{text:content,truncated:finish==='MAX_TOKENS',usage,model});
  }catch(e){
   if(e?.name==='AbortError')return send(res,504,{error:{message:'Gemini 응답 시간이 초과되었습니다.',code:'TIMEOUT'}});
