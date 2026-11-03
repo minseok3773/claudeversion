@@ -37,14 +37,14 @@ return {evidenceLines,mergeAssessment};`)();
   ok(L[0]==='복약 거부함','12자 미만 짧은 줄도 남김',L[0]);
   ok(L.join(' ').includes('가족 면회를 원한다고 말함.'),'문단 끝 문장도 빠지지 않음');
   ok(L.every(x=>x.length<=320),'나눈 조각은 300자 안팎',L.map(x=>x.length));}
- console.log('[4] 누락 대조 결과 합치기: 빈 영역만 채우고, 있던 내용을 ‘해당사항 없음’으로 지우지 않음');
- {const draft={memberNeed:'- 산책을 희망함.',psycho:{primarySupport:'',finance:'▪ 용돈 관리 어려움.',housing:'▪ 해당사항 없음.'},strength:['참여에 적극적임.','',''],weakness:['금전관리 능력이 부족함.','',''],managerItems:[{title:'금전관리',reason:'a',sources:[1]}]};
-  const rev={memberNeed:'- 산책을 꾸준히 하기를 희망함.',psycho:{primarySupport:'▪ 가족 면회 요청 있음.',finance:'▪ 해당사항 없음.',housing:'▪ 퇴소 후 거주지 미정.'},strength:['참여에 적극적임.','진료 참여 양호함.',''],weakness:['금전관리 능력이 부족함.','',''],managerItems:[]};
+ console.log('[4] 누락 대조 결과 합치기(v3.21.71): 빈칸만 채우고 욕구·개입영역·있던 내용은 바꾸지 않음');
+ {const draft={memberNeed:'- 산책을 희망함.',managerItems:[{title:'금전관리',reason:'a',sources:[1]}],psycho:{primarySupport:'',finance:'▪ 용돈 관리 어려움.',housing:'▪ 해당사항 없음.',employment:'▪ 해당사항 없음.'},strength:['참여에 적극적임.','',''],weakness:['금전관리 능력이 부족함.','','']};
+  const rev={memberNeed:'- 취업을 희망함.',managerItems:[{title:'취업',reason:'b'},{title:'건강',reason:'c'}],psycho:{primarySupport:'▪ 가족 면회 요청 있음.',finance:'▪ 채무 있음.',housing:'▪ 퇴소 후 거주지 미정.',employment:'▪ 해당사항 없음.'},strength:['참여에 적극적임.','진료 참여 양호함.','참여에 적극적임.'],weakness:['금전관리 능력이 부족함.','','']};
   const m=lib.mergeAssessment(draft,rev);
-  ok(m.psycho.primarySupport==='▪ 가족 면회 요청 있음.'&&m.psycho.housing==='▪ 퇴소 후 거주지 미정.','빈 영역·해당사항 없음 영역을 채움',m.psycho);
-  ok(m.psycho.finance==='▪ 용돈 관리 어려움.','있던 내용은 지우지 않음',m.psycho.finance);
-  ok(m.strength[1]==='진료 참여 양호함.','강점 빈칸 채움',m.strength);
-  ok(m.managerItems.length===1,'개입 영역이 줄어든 답은 받지 않음',m.managerItems);
-  ok(lib.mergeAssessment(draft,{})===draft||JSON.stringify(lib.mergeAssessment(draft,{}))===JSON.stringify(draft),'빈 답이면 첫 초안 그대로');}
+  ok(m.memberNeed==='- 산책을 희망함.'&&m.managerItems.length===1&&m.managerItems[0].title==='금전관리','욕구·개입영역은 첫 초안 그대로',[m.memberNeed,m.managerItems]);
+  ok(m.psycho.primarySupport==='▪ 가족 면회 요청 있음.'&&m.psycho.housing==='▪ 퇴소 후 거주지 미정.','빈 영역·해당사항 없음 영역만 채움',m.psycho);
+  ok(m.psycho.finance==='▪ 용돈 관리 어려움.'&&m.psycho.employment==='▪ 해당사항 없음.','있던 내용은 바꾸지 않음',m.psycho);
+  ok(m.strength[0]==='참여에 적극적임.'&&m.strength[1]==='진료 참여 양호함.'&&m.strength[2]==='','강점 빈칸만, 겹치지 않게 채움',m.strength);
+  ok(JSON.stringify(lib.mergeAssessment(draft,{}))===JSON.stringify({...draft,}),'빈 답이면 첫 초안 그대로');}
  done();
 })().catch(e=>{console.error(e);process.exitCode=1});
