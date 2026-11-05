@@ -41,6 +41,14 @@ async function answerAll(t,ai,{wrap=true,max=8}={}){const seen=[];for(let k=0;k<
   ok(o&&o[1]==='https://claude.ai/new'&&/복사하고 Claude 새 대화를 열었습니다/.test(t.$('#cdCopyMsg').textContent),'보내기 한 번에 복사+새 대화 열기(긴 요청은 주소에 넣지 않음)',o);
   ok(t.ev("claudeOpenUrl('짧은 요청')")==='https://claude.ai/new?q='+encodeURIComponent('짧은 요청')&&t.ev("claudeOpenUrl('가'.repeat(3000))")==='https://claude.ai/new','짧은 요청만 입력창에 미리 채움');
   t.click('#cdCancel');await run;}
+ console.log('[3b] 창이 닫혀도(Esc 등) 다시 열어 이어서 작성(v3.22.2)');
+ {const t=boot(DIR,{stored:stored57(),storage:ENGINE});t.ev("state.view='ai';paint()");
+  const run=t.ev("runLocalAI('plan')");const d=await waitDlg(t);
+  d.open=false;d.dispatchEvent(new t.w.Event('close'));await sleep(10);
+  const btn=t.$('#aiProgress .claude-reopen');ok(!!btn,'진행 상태에 ‘Claude 창 다시 열기’ 버튼이 나옴');
+  t.click(btn);ok(d.open&&!t.$('.claude-reopen'),'누르면 같은 요청 창이 다시 열림');
+  const seen=await answerAll(t,makeAI());await run;
+  ok(seen.length>=2&&!t.ev('aiWorking')&&!t.logs.some(l=>l[0]==='alert'&&/실패|오류/.test(l[1])),'이어서 끝까지 작성됨',seen.length);}
  console.log('[4] Gemini 자동으로 바꾸면 예전처럼 서버로 보냄');
  {const t=boot(DIR,{stored:stored57(),storage:ENGINE,ai:makeAI()});t.ev("state.view='ai';paint()");
   t.change('input[name="aiEngine"][value="gemini"]',true);ok(t.ev('aiEngine')==='gemini'&&t.w.localStorage.getItem('rehab_ai_engine_v1')==='gemini','선택이 저장됨');

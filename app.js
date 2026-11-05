@@ -1,7 +1,7 @@
 'use strict';
 // v2.1: 기록 관리는 서버 없이 동작. AI는 사용자가 동의한 경우에만 라이브러리·모델을 외부에서 내려받음.
 const KEY='sehuim_rehab_offline_v1';
-const APP_RELEASE='3.22.1-design-blue';
+const APP_RELEASE='3.22.2-design-blue';
 const $=(s,root=document)=>root.querySelector(s);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s??'').trim();
@@ -3553,7 +3553,7 @@ function aiPage(m){const sel=noteSelection(m);const busy=aiWorking;const hasOld=
  ${carryPendingText(m)?`<p class="muted">${escapeHtml(carryPendingText(m))} — 재활계획서를 작성할 때 들어갑니다. <button class="btn small" data-act="carry-cancel">취소</button></p>`:`<p class="muted">이전 장기목표·강점·약점은 ‘상담일지 관리’나 ‘재활계획서’의 ‘이전 계획서 불러오기’에서 골라 둘 수 있습니다.</p>`}
  <div class="toolbar ai-run-area"><button class="btn primary" style="font-size:16px;padding:14px 22px" data-act="ai-run-auto" ${sel.used.length&&!busy&&!aiDiag.busy?'':'disabled'}>AI 자동작성 시작</button><span class="muted">체크한 상담일지(와 고른 장기목표·강점·약점)로 재활계획서를 쓰고, 이어서 그 계획서의 재활평가서를 작성</span></div>
  <details class="ai-advanced"><summary>개별 작성 및 오류 대체 기능</summary><div class="toolbar"><button class="btn" data-act="ai-run-plan" ${sel.used.length&&!busy&&!aiDiag.busy?'':'disabled'}>계획서만 작성</button><button class="btn" data-act="ai-run-eval" ${sel.used.length&&!busy&&!aiDiag.busy&&hasOld?'':'disabled'}>현재 계획서 평가 작성</button><button class="btn" data-act="ai-run-both" ${sel.used.length&&!busy&&!aiDiag.busy&&hasOld?'':'disabled'}>이전 계획 평가 후 차기 계획 작성</button><button class="btn" data-act="navigate" data-view="analysis">규칙 기반 대체 기능</button></div></details>
- <div id="aiProgress" class="ai-progress" role="status"><strong>진행 상태</strong><p id="aiStatus" class="ai-status">${escapeHtml(aiStatus)}</p><progress id="aiPercent" max="100" value="${Math.floor(aiPercent)}"></progress>${busy?'<div class="toolbar"><button class="btn danger small ai-keep" data-act="ai-cancel">중단</button></div>':''}<p class="muted" id="aiMeta">${escapeHtml(aiMetaText)}</p></div>
+ <div id="aiProgress" class="ai-progress" role="status"><strong>진행 상태</strong><p id="aiStatus" class="ai-status">${escapeHtml(aiStatus)}</p><progress id="aiPercent" max="100" value="${Math.floor(aiPercent)}"></progress>${busy?'<div class="toolbar"><button class="btn danger small ai-keep" data-act="ai-cancel">중단</button></div>':''}${busy&&claudeReopenOn?CLAUDE_REOPEN_HTML:''}<p class="muted" id="aiMeta">${escapeHtml(aiMetaText)}</p></div>
  ${aiDiagBoxHtml()}
  <p class="footnote">프로그램은 동일한 회원 기록에 대한 문서 초안만 작성합니다. 승인 전에는 목표 및 실적을 반드시 상담 원문과 대조하세요. 연결 장애 시 기존 문서는 유지됩니다.</p>`}
 // v3.21.58: 회원별 실천모델 선택 저장
@@ -3659,8 +3659,9 @@ function claudeManualExchange(system,prompt,{json=true}={}){
  return new Promise((resolve,reject)=>{
   if(aiCancel){reject(Error(CANCEL_MSG));return}
   let d=document.getElementById('claudeDlg');if(!d){d=document.createElement('dialog');d.id='claudeDlg';document.body.appendChild(d)}
-  d.style.width='min(860px,96vw)';
-  d.innerHTML=`<h3 style="margin-top:0">Claude로 작성 — ${no}번째 요청</h3>
+  d.style.width='min(860px,96vw)';d.style.maxHeight='94vh';d.style.overflow='auto';
+  const extra=/빠진 목표 보완/.test(aiStatus)?' (추가 요청: 앞 답에서 빠진 목표 채우기)':'';
+  d.innerHTML=`<h3 style="margin-top:0">Claude로 작성 — ${no}번째 요청${extra}</h3>
 <p class="muted" style="margin:0 0 6px">${escapeHtml(aiStatus)}</p>
 <ol style="margin:6px 0 10px;padding-left:20px;line-height:1.7"><li><b>Claude 채팅으로 보내기</b>를 누릅니다. 요청문(상담일지 전문 포함 ${text.length.toLocaleString()}자)이 복사되고 내 계정의 Claude 새 대화가 열립니다.</li><li>Claude 입력창에 붙여 넣고(Ctrl+V) 보냅니다.${claudeOpenUrl(text)!==CLAUDE_URL?' (짧은 요청은 입력창에 미리 채워져 있으니 보내기만 누르면 됩니다)':''}</li><li>Claude 답변 아래의 <b>복사</b> 버튼으로 답 전체를 복사해 아래 칸에 붙여 넣고 <b>결과 넣기</b>를 누릅니다.</li></ol>
 <div class="toolbar"><button type="button" class="btn primary" id="cdSend">Claude 채팅으로 보내기</button><button type="button" class="btn" id="cdCopy">요청문만 복사</button><button type="button" class="btn" id="cdOpen">claude.ai만 열기</button><span class="muted" id="cdCopyMsg"></span></div>
@@ -3672,7 +3673,9 @@ function claudeManualExchange(system,prompt,{json=true}={}){
 <p class="footnote" style="margin-bottom:0">요청문에는 상담일지 내용이 들어 있습니다. 회원 이름은 가명으로 쓰고, 주민번호·연락처·주소는 지운 뒤 사용하세요.</p>`;
   $('#cdPrompt',d).value=text;
   let done=false;const outer=aiAbort;
-  const fin=(fn,v)=>{if(done)return;done=true;outer?.signal.removeEventListener('abort',onAbort);aiCancelWaiters=aiCancelWaiters.filter(x=>x!==onAbort);try{d.close()}catch{}fn(v)};
+  const fin=(fn,v)=>{if(done)return;done=true;d.onclose=null;showClaudeReopen(false);outer?.signal.removeEventListener('abort',onAbort);aiCancelWaiters=aiCancelWaiters.filter(x=>x!==onAbort);try{d.close()}catch{}fn(v)};
+  // v3.22.2: Esc 등으로 창이 닫혀도 작업이 멈춘 채 남지 않게, 진행 상태에 ‘Claude 창 다시 열기’ 버튼을 보여 준다.
+  d.onclose=()=>{if(!done)showClaudeReopen(true)};
   const onAbort=()=>fin(reject,Error(CANCEL_MSG));outer?.signal.addEventListener('abort',onAbort);aiCancelWaiters.push(onAbort);
   $('#cdCopy',d).onclick=async()=>{const ok=await copyText(text);$('#cdCopyMsg',d).textContent=ok?'복사했습니다. claude.ai에 붙여 넣으세요.':'자동 복사가 막혔습니다. ‘요청문 보기’를 열어 전체 선택(Ctrl+A) 후 복사하세요.';if(!ok){$('details',d).open=true;$('#cdPrompt',d).select()}};
   $('#cdOpen',d).onclick=()=>{window.open(CLAUDE_URL,'_blank','noopener')};
@@ -3685,8 +3688,13 @@ function claudeManualExchange(system,prompt,{json=true}={}){
    if(!ans){err.textContent='Claude 답변을 붙여 넣어 주세요.';return}
    if(json){try{safeJson(ans)}catch{err.textContent='답변에서 JSON을 찾지 못했습니다. Claude 답변 전체({ 로 시작해 } 로 끝나는 부분)를 그대로 복사해 붙여 넣으세요. 답이 중간에 끊겼다면 Claude에게 “이어서 계속 써 줘”라고 한 뒤 전체를 합쳐 붙여 넣으세요.';return}}
    fin(resolve,{text:ans,truncated:false})};
-  d.showModal();$('#cdSend',d).focus();
+  showClaudeReopen(false);d.showModal();$('#cdSend',d).focus();
  })}
+let claudeReopenOn=false;
+const CLAUDE_REOPEN_HTML='<button type="button" class="btn primary small ai-keep claude-reopen" style="margin:8px 8px 0 0">Claude 창 다시 열기</button>';
+function showClaudeReopen(on){claudeReopenOn=!!on;document.querySelectorAll('.claude-reopen').forEach(x=>x.remove());if(!on)return;
+ const box=$('#aiProgress');if(box)box.insertAdjacentHTML('beforeend',CLAUDE_REOPEN_HTML)}
+document.addEventListener('click',ev=>{if(!ev.target.closest?.('.claude-reopen'))return;const d=document.getElementById('claudeDlg');if(d&&!d.open){showClaudeReopen(false);d.showModal()}});
 function aiEngineBoxHtml(busy){
  return `<div class="field" style="margin:12px 0"><b>작성 AI 선택</b><div class="toolbar" style="margin-top:6px"><label style="display:inline-flex;gap:6px;align-items:center"><input type="radio" name="aiEngine" value="claude" ${aiEngine==='claude'?'checked':''} ${busy?'disabled':''}> Claude로 작성(claude.ai 구독 · 복사·붙여넣기)</label><label style="display:inline-flex;gap:6px;align-items:center"><input type="radio" name="aiEngine" value="gemini" ${aiEngine==='gemini'?'checked':''} ${busy?'disabled':''}> Gemini 자동(무료 API)</label></div>
  <p class="muted">${aiEngine==='claude'?'Claude로 작성: 체크한 상담일지를 <b>자르지 않고 전문</b>으로 넣은 요청문을 만듭니다. 요청문을 claude.ai에 붙여 넣고, Claude 답을 다시 붙여 넣으면 양식 칸에 채워집니다. 계획서·평가서를 함께 쓰면 보통 3번 주고받습니다. Claude Pro 구독으로 쓰므로 API 요금이 들지 않습니다.':'Gemini 자동: 기관 서버의 무료 Gemini API로 바로 작성합니다. 상담일지가 길면 일부 문장만 발췌될 수 있습니다.'}</p></div>`}
