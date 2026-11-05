@@ -1,7 +1,7 @@
 'use strict';
 // v2.1: 기록 관리는 서버 없이 동작. AI는 사용자가 동의한 경우에만 라이브러리·모델을 외부에서 내려받음.
 const KEY='sehuim_rehab_offline_v1';
-const APP_RELEASE='3.21.71-design-blue';
+const APP_RELEASE='3.22.1-design-blue';
 const $=(s,root=document)=>root.querySelector(s);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s??'').trim();
@@ -3464,15 +3464,20 @@ function accumulateAiUsage(u){if(!u||!Number.isFinite(Number(u.total)))return;ai
 document.addEventListener('toggle',ev=>{if(ev.target?.id==='aiAdvanced')aiAdvancedOpen=ev.target.open},true);
 // 온라인 AI는 이 사이트의 서버를 통해서만 호출한다. 브라우저에는 API 키를 저장하지 않는다.
 const IS_MANAGED_ONLINE=true;
-const AI_PROVIDERS={managed:{name:'Gemini AI',base:'/api',kind:'hosted',ctx:60000,out:6000}};
+const AI_PROVIDERS={managed:{name:'Gemini AI',base:'/api',kind:'hosted',ctx:60000,out:6000},claude:{name:'Claude(claude.ai)',base:'',kind:'manual',ctx:1000000,out:16000}};
+// v3.22.0: ‘Claude로 작성’ — 담당자의 Claude 구독(claude.ai)으로 쓴다. 프로그램이 상담일지 전문을 담은 요청문을 만들어 복사해 주고,
+// 담당자가 claude.ai에 붙여 넣어 받은 답(JSON)을 다시 붙여 넣으면 기존 Gemini와 같은 과정으로 칸에 채운다. API 키·요금이 필요 없다.
+let aiEngine=(()=>{try{return localStorage.getItem('rehab_ai_engine_v1')==='claude'?'claude':'gemini'}catch{return 'gemini'}})();
+function setAiEngine(v){aiEngine=v==='claude'?'claude':'gemini';try{localStorage.setItem('rehab_ai_engine_v1',aiEngine)}catch{}}
+const CLAUDE_CONN={id:'claude-manual',provider:'claude',model:'claude.ai',key:'',base:'',ctx:1000000};
 function normConn(c){return {id:'hosted',provider:'managed',model:'server-managed',key:'',base:'/api',ctx:60000}}
 // 이전 버전의 AI 계정 설정은 이 버전에서 사용하지 않는다. 기존에 저장된 키 흔적을 제거한다.
 try{localStorage.removeItem('sehuim_rehab_ai_conn_v1')}catch{}
 let aiConns=[normConn({})];
 function saveConns(){}
 const connReady=c=>c.provider==='managed';
-const readyConns=()=>aiConns;
-const connLabel=c=>'Gemini AI';
+const readyConns=()=>aiEngine==='claude'?[CLAUDE_CONN]:aiConns;
+const connLabel=c=>c?.provider==='claude'?'Claude(claude.ai)':'Gemini AI';
 const aiModelLists={};
 let institutionAuthOk=false;
 async function ensureInstitutionSession(){
@@ -3538,7 +3543,7 @@ async function runAiDiagnosis(){if(aiDiag.busy||aiWorking)return;
   aiDiag.summary=bad?`${AI_DIAG_NAMES[bad.key]} 단계에서 막혔습니다. 위 안내대로 확인한 뒤 다시 진단해 보세요.`:'AI 자동작성을 쓸 수 있는 상태입니다.'+(noWeb?' (최신 전문자료 찾기는 안 되어 내장 요약으로 작성합니다)':'');
   aiDiag.busy=false;aiDiag.at=Date.now();paint()}}
 function aiPage(m){const sel=noteSelection(m);const busy=aiWorking;const hasOld=hasEvaluablePlan(m);const shared=sharedLegacyDocuments().length;const pref=practiceModelPreference(m.modelPreference);
- return `<h2>AI 재활계획·평가 자동작성 — Gemini</h2><div class="info"><b>작성자 ${escapeHtml(writer().name)}의 모든 회원에 개인 문체와 과거 문서 공통 작성기준 적용</b> · 공통 적용 과거 문서 ${shared}건 · 승인된 학습자료: 계획서 ${writerLearningRecords('plan').length}건(원본 회원 ${writerLearningSourceCount('plan')}명) / 평가서 ${writerLearningRecords('evaluation').length}건(원본 회원 ${writerLearningSourceCount('evaluation')}명). 승인된 자료에서는 문체·작성 방식만 가져오며 다른 회원의 진술·증상·활동·실적은 가져오지 않습니다. 작성자 프로필은 로그인 기능이 아닙니다.</div>
+ return `<h2>AI 재활계획·평가 자동작성 — ${aiEngine==='claude'?'Claude':'Gemini'}</h2>${aiEngineBoxHtml(busy)}<div class="info"><b>작성자 ${escapeHtml(writer().name)}의 모든 회원에 개인 문체와 과거 문서 공통 작성기준 적용</b> · 공통 적용 과거 문서 ${shared}건 · 승인된 학습자료: 계획서 ${writerLearningRecords('plan').length}건(원본 회원 ${writerLearningSourceCount('plan')}명) / 평가서 ${writerLearningRecords('evaluation').length}건(원본 회원 ${writerLearningSourceCount('evaluation')}명). 승인된 자료에서는 문체·작성 방식만 가져오며 다른 회원의 진술·증상·활동·실적은 가져오지 않습니다. 작성자 프로필은 로그인 기능이 아닙니다.</div>
  <div class="grid"><div class="stat"><span>선택 회원</span><strong>${escapeHtml(m.label)}</strong></div><div class="stat"><span>체크 / 실제 분석 상담기록</span><strong class="count">${sel.chosen} / ${sel.used.length}건</strong></div></div>
  <p class="muted"><b>이번 AI 작성에 쓰는 상담일지 — ${escapeHtml(m.label)}:</b> ${sel.used.length?sel.used.slice(0,8).map(({n,i})=>escapeHtml((i+1)+'. '+(n.date||'날짜 미입력')+' / '+(clean(n.topic||n.title)||'제목 미입력'))).join(' · ')+(sel.used.length>8?' 외 '+(sel.used.length-8)+'건':''):'없음 (상담일지 목록에서 체크해 주세요)'}</p>
  <p class="muted">정신과적 진단·증상: <b>${escapeHtml(normPsy(m.psychiatricConditions).join(' · ')||'입력 안 함')}</b>${normPsy(m.psychiatricConditions).length?' — 배경 정보로만 쓰고, 분류에 맞는 공개 지침(NICE·WHO) 요약을 함께 참고합니다':' — ‘상담일지 관리’에서 고를 수 있습니다'}.</p>
@@ -3567,7 +3572,9 @@ function evidenceLines(text){const out=[];
   if(buf)out.push(buf)}
  return out}
 function collectEvidence(m,stage,budget){
- const sel=noteSelection(m);let items=sel.used;const total=items.length;const MIN=140;let dropped=0;
+ const sel=noteSelection(m);let items=sel.used;const total=items.length;
+ // v3.22.0: Claude(claude.ai)로 쓸 때는 입력 한도가 넉넉하므로 체크한 상담일지를 고르거나 자르지 않고 전문을 넣는다.
+ if(aiEngine==='claude'){const text=items.map(({n,i})=>`[기록 ${i+1} / ${n.date||'날짜 미상'} / ${(n.title||'주제 미상').slice(0,60)}]\n${clean(n.body)}`).join('\n\n');return{text,used:items.length,total,outside:sel.outside.length,dropped:0,trunc:0}}const MIN=140;let dropped=0;
  const maxN=Math.max(1,Math.floor(budget/MIN));if(items.length>maxN){dropped=items.length-maxN;items=items.slice(-maxN)}
  const stageTerms={assessment:/망상|환청|우울|가족|부모|생활|호소|희망|자립|수면|건강|검사|진료|관계|상담|스트레스|병식|증상|활동|복약|약물|입원|상태/i,goals:/문제|어려움|증상|검사|진료|목표|계획|참여|활동|운동|퇴소|자립|안전|건강|무기력|수면|행동|관리|개입/i,evaluation:/실시|참여|수행|변화|증가|감소|유지|중단|재개|달성|평가|점수|점검|상담|진료|입원|처방|예정|계획|결과|성과|검사/i};
  const per=Math.floor(budget/Math.max(1,items.length));let trunc=0;
@@ -3602,6 +3609,7 @@ async function aiFetch(c,path,body,method='POST'){
 }
 async function aiCallConn(c,system,prompt,maxTokens,{json=true}={}){
  const p=AI_PROVIDERS[c.provider];
+ if(p.kind==='manual')return claudeManualExchange(system,prompt,{json});
  if(p.kind==='hosted'){
   await ensureInstitutionSession();
   let data;
@@ -3619,6 +3627,70 @@ async function aiCallConn(c,system,prompt,maxTokens,{json=true}={}){
  catch(e){if(!json||!(e.status===400&&aiFormatUnsupported(e)))throw e;d=await aiFetch(c,'/chat/completions',body)}
  const ch=d?.choices?.[0];return{text:str(ch?.message?.content),truncated:ch?.finish_reason==='length'};
 }
+// v3.22.0: Claude(claude.ai) 복사·붙여넣기 주고받기. 요청문을 보여 주고 복사·claude.ai 열기를 돕고, 붙여 넣은 답을 확인해 돌려준다.
+const CLAUDE_URL='https://claude.ai/new';
+let claudeStepNo=0,claudeStepRun=-1;
+function claudePromptText(system,prompt,{json=true}={}){
+ return `아래는 정신재활시설 재활계획서·재활평가서 작성 프로그램이 보내는 요청입니다. 20년차 정신건강사회복지사의 관점으로 [작성 지침]을 지키며 [요청]에 답하십시오.
+
+[작성 지침]
+${system}
+
+[요청]
+${prompt}
+
+[답변 형식 — 반드시 지킬 것]
+${json?`- 인사말·설명·검토 의견 없이 JSON 객체 하나만 답하십시오.
+- 답 전체를 \`\`\`json 으로 시작하는 코드 블록 하나에 넣으십시오.
+- [요청]에 적힌 키 이름과 구조를 바꾸거나 빼지 마십시오. 해당 내용이 없으면 요청에 적힌 대로 빈 값이나 ‘해당사항 없음’을 넣으십시오.
+- 상담일지를 빠짐없이 끝까지 읽고, 상담일지에 근거가 있는 내용만 쓰십시오.
+- 파일·아티팩트를 만들지 말고 대화창에 바로 답하십시오.`:`- 인사말·설명 없이 요청한 글만 답하십시오.
+- 파일·아티팩트를 만들지 말고 대화창에 바로 답하십시오.`}`}
+// 클릭한 그 순간에 바로 복사한다(새 탭을 연 뒤에는 브라우저가 복사를 막을 수 있음).
+function copyTextSync(t){try{const ta=document.createElement('textarea');ta.value=t;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return !!ok}catch{return false}}
+// 요청문이 짧으면 claude.ai 입력창에 미리 채워 열고(?q=), 길면(주소 길이 한도) 빈 새 대화를 열어 붙여 넣게 한다.
+const CLAUDE_Q_MAX=6000;
+function claudeOpenUrl(text){const q=encodeURIComponent(text);return q.length<=CLAUDE_Q_MAX?CLAUDE_URL+'?q='+q:CLAUDE_URL}
+async function copyText(t){try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(t);return true}}catch{}
+ try{const ta=document.createElement('textarea');ta.value=t;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return ok}catch{return false}}
+function claudeManualExchange(system,prompt,{json=true}={}){
+ if(claudeStepRun!==aiRunId){claudeStepRun=aiRunId;claudeStepNo=0}
+ const no=++claudeStepNo;const text=claudePromptText(system,prompt,{json});
+ return new Promise((resolve,reject)=>{
+  if(aiCancel){reject(Error(CANCEL_MSG));return}
+  let d=document.getElementById('claudeDlg');if(!d){d=document.createElement('dialog');d.id='claudeDlg';document.body.appendChild(d)}
+  d.style.width='min(860px,96vw)';
+  d.innerHTML=`<h3 style="margin-top:0">Claude로 작성 — ${no}번째 요청</h3>
+<p class="muted" style="margin:0 0 6px">${escapeHtml(aiStatus)}</p>
+<ol style="margin:6px 0 10px;padding-left:20px;line-height:1.7"><li><b>Claude 채팅으로 보내기</b>를 누릅니다. 요청문(상담일지 전문 포함 ${text.length.toLocaleString()}자)이 복사되고 내 계정의 Claude 새 대화가 열립니다.</li><li>Claude 입력창에 붙여 넣고(Ctrl+V) 보냅니다.${claudeOpenUrl(text)!==CLAUDE_URL?' (짧은 요청은 입력창에 미리 채워져 있으니 보내기만 누르면 됩니다)':''}</li><li>Claude 답변 아래의 <b>복사</b> 버튼으로 답 전체를 복사해 아래 칸에 붙여 넣고 <b>결과 넣기</b>를 누릅니다.</li></ol>
+<div class="toolbar"><button type="button" class="btn primary" id="cdSend">Claude 채팅으로 보내기</button><button type="button" class="btn" id="cdCopy">요청문만 복사</button><button type="button" class="btn" id="cdOpen">claude.ai만 열기</button><span class="muted" id="cdCopyMsg"></span></div>
+<details style="margin:6px 0"><summary class="muted">요청문 보기</summary><textarea id="cdPrompt" readonly style="width:100%;height:160px;font-size:12px"></textarea></details>
+<label for="cdAnswer"><b>Claude 답변 붙여넣기</b></label>
+<textarea id="cdAnswer" style="width:100%;height:200px;font-size:13px" placeholder="Claude가 답한 내용을 여기에 붙여 넣으세요"></textarea>
+<p id="cdErr" class="muted" style="color:#b42318;min-height:1em;margin:4px 0"></p>
+<div class="toolbar"><button type="button" class="btn danger" id="cdCancel">중단</button><span class="grow"></span><button type="button" class="btn primary" id="cdOk">결과 넣기</button></div>
+<p class="footnote" style="margin-bottom:0">요청문에는 상담일지 내용이 들어 있습니다. 회원 이름은 가명으로 쓰고, 주민번호·연락처·주소는 지운 뒤 사용하세요.</p>`;
+  $('#cdPrompt',d).value=text;
+  let done=false;const outer=aiAbort;
+  const fin=(fn,v)=>{if(done)return;done=true;outer?.signal.removeEventListener('abort',onAbort);aiCancelWaiters=aiCancelWaiters.filter(x=>x!==onAbort);try{d.close()}catch{}fn(v)};
+  const onAbort=()=>fin(reject,Error(CANCEL_MSG));outer?.signal.addEventListener('abort',onAbort);aiCancelWaiters.push(onAbort);
+  $('#cdCopy',d).onclick=async()=>{const ok=await copyText(text);$('#cdCopyMsg',d).textContent=ok?'복사했습니다. claude.ai에 붙여 넣으세요.':'자동 복사가 막혔습니다. ‘요청문 보기’를 열어 전체 선택(Ctrl+A) 후 복사하세요.';if(!ok){$('details',d).open=true;$('#cdPrompt',d).select()}};
+  $('#cdOpen',d).onclick=()=>{window.open(CLAUDE_URL,'_blank','noopener')};
+  $('#cdSend',d).onclick=async()=>{const url=claudeOpenUrl(text),pre=url!==CLAUDE_URL;let ok=copyTextSync(text);window.open(url,'_blank','noopener');if(!ok)ok=await copyText(text);
+   $('#cdCopyMsg',d).textContent=pre?'Claude 입력창에 요청문을 채워 열었습니다. 보내기를 누르세요.':ok?'요청문을 복사하고 Claude 새 대화를 열었습니다. 입력창에 붙여 넣고(Ctrl+V) 보내세요.':'Claude 새 대화를 열었지만 자동 복사가 막혔습니다. ‘요청문 보기’를 열어 전체 선택(Ctrl+A) 후 복사하세요.';
+   if(!ok&&!pre){$('details',d).open=true;$('#cdPrompt',d).select()}};
+  $('#cdCancel',d).onclick=()=>{fireCancel();fin(reject,Error(CANCEL_MSG))};
+  d.oncancel=e=>{e.preventDefault()};
+  $('#cdOk',d).onclick=()=>{const ans=$('#cdAnswer',d).value.trim();const err=$('#cdErr',d);
+   if(!ans){err.textContent='Claude 답변을 붙여 넣어 주세요.';return}
+   if(json){try{safeJson(ans)}catch{err.textContent='답변에서 JSON을 찾지 못했습니다. Claude 답변 전체({ 로 시작해 } 로 끝나는 부분)를 그대로 복사해 붙여 넣으세요. 답이 중간에 끊겼다면 Claude에게 “이어서 계속 써 줘”라고 한 뒤 전체를 합쳐 붙여 넣으세요.';return}}
+   fin(resolve,{text:ans,truncated:false})};
+  d.showModal();$('#cdSend',d).focus();
+ })}
+function aiEngineBoxHtml(busy){
+ return `<div class="field" style="margin:12px 0"><b>작성 AI 선택</b><div class="toolbar" style="margin-top:6px"><label style="display:inline-flex;gap:6px;align-items:center"><input type="radio" name="aiEngine" value="claude" ${aiEngine==='claude'?'checked':''} ${busy?'disabled':''}> Claude로 작성(claude.ai 구독 · 복사·붙여넣기)</label><label style="display:inline-flex;gap:6px;align-items:center"><input type="radio" name="aiEngine" value="gemini" ${aiEngine==='gemini'?'checked':''} ${busy?'disabled':''}> Gemini 자동(무료 API)</label></div>
+ <p class="muted">${aiEngine==='claude'?'Claude로 작성: 체크한 상담일지를 <b>자르지 않고 전문</b>으로 넣은 요청문을 만듭니다. 요청문을 claude.ai에 붙여 넣고, Claude 답을 다시 붙여 넣으면 양식 칸에 채워집니다. 계획서·평가서를 함께 쓰면 보통 3번 주고받습니다. Claude Pro 구독으로 쓰므로 API 요금이 들지 않습니다.':'Gemini 자동: 기관 서버의 무료 Gemini API로 바로 작성합니다. 상담일지가 길면 일부 문장만 발췌될 수 있습니다.'}</p></div>`}
+document.addEventListener('change',ev=>{if(ev.target?.name!=='aiEngine'||aiWorking)return;setAiEngine(ev.target.value);paint()});
 function connErrorText(e){const s=e?.status;
  // 서버가 알려 준 원인(예: Gemini API 키 권한, 모델 접근 불가)이 있으면 그대로 보여 준다.
  const srvMsg=aiErrorMessage(e).replace(/^HTTP \d+\s*/,'').trim();
@@ -3641,7 +3713,7 @@ async function aiAsk(system,build,minOut=1500){
  const fails=[];
  for(const c of conns){
   checkCancel();if(aiDead.ids.has(c.id)){fails.push(`${connLabel(c)}: 앞 단계에서 실패해 건너뜀`);continue}const p=AI_PROVIDERS[c.provider];aiCtx=c.ctx;const out=Math.max(minOut,p.out);
-  const start=Math.max(1200,Math.min(60000,Math.floor((aiCtx-out-2600)/1.35)));
+  const start=Math.max(1200,Math.min(p.kind==='manual'?600000:60000,Math.floor((aiCtx-out-2600)/1.35)));
   let r;try{r=fitted(system,build,start,out)}catch(e){fails.push(`${connLabel(c)}: ${aiErrorMessage(e)}`);continue}
   let budget=start;
   for(let attempt=0;attempt<3;attempt++){
@@ -4223,6 +4295,8 @@ function mergeAssessment(draft,rev){
  return out}
 async function aiCoverageAssessment(m,draft){
  if(!isObj(draft))return draft;
+ // v3.22.0: Claude로 쓸 때는 첫 요청에 상담일지 전문과 문항별 뜻·마지막 점검이 이미 들어가므로, 복사·붙여넣기 횟수를 줄이려고 이 점검 요청을 건너뛴다.
+ if(aiEngine==='claude')return draft;
  try{const r=await aiAsk(AI_SYSTEM,(b,l=0)=>{const ev=collectEvidence(m,'assessment',b);return{ev,prompt:`[문항 점검 — 초안 고쳐 쓰기] 아래 [초안 JSON]은 이 회원의 상담 근거로 쓴 재활계획서 욕구·강점·약점·심리사회 평가 초안이다. 칸마다 [문항별 뜻]에 맞는지, 상담 근거에 직접 확인되는 내용인지 점검한다. 문항에 맞고 근거가 있는 칸은 그대로 둔다. 문항에 맞지 않거나(예: 회원 욕구 칸에 직원이 판단한 문제, 강점 칸에 어려움, 다른 영역의 심리사회 내용) 근거가 없는 내용은 그 문항이 묻는 것에 맞게 상담 근거로 다시 쓴다. 비어 있거나 ‘▪ 해당사항 없음.’인 칸은 그 문항에 맞는 근거가 있을 때만 채운다. managerItems는 개수를 늘리지 않고, 각 항목의 title·reason이 사례관리자 관점의 개입 영역과 근거에 맞게만 다듬으며 sources는 유지한다. 문체 규칙과 키 구조는 초안과 같게 하고, 초안과 같은 키를 모두 가진 JSON 객체 하나로만 답한다.\n${ASSESS_ITEM_GUIDE}\n[초안 JSON]\n${JSON.stringify(draft).slice(0,l>=2?5000:9000)}\n[상담 근거]\n${ev.text}\n${ASSESS_FINAL_CHECK}`}},5000);
   return mergeAssessment(draft,r.result)}
  catch(e){if(isCancel(e)||/취소/.test(aiErrorMessage(e)))throw e;return draft}}
