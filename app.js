@@ -1,7 +1,7 @@
 'use strict';
 // v2.1: 기록 관리는 서버 없이 동작. AI는 사용자가 동의한 경우에만 라이브러리·모델을 외부에서 내려받음.
 const KEY='sehuim_rehab_offline_v1';
-const APP_RELEASE='3.22.0-design-blue';
+const APP_RELEASE='3.22.1-design-blue';
 const $=(s,root=document)=>root.querySelector(s);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s??'').trim();
@@ -3646,6 +3646,11 @@ ${json?`- 인사말·설명·검토 의견 없이 JSON 객체 하나만 답하�
 - 상담일지를 빠짐없이 끝까지 읽고, 상담일지에 근거가 있는 내용만 쓰십시오.
 - 파일·아티팩트를 만들지 말고 대화창에 바로 답하십시오.`:`- 인사말·설명 없이 요청한 글만 답하십시오.
 - 파일·아티팩트를 만들지 말고 대화창에 바로 답하십시오.`}`}
+// 클릭한 그 순간에 바로 복사한다(새 탭을 연 뒤에는 브라우저가 복사를 막을 수 있음).
+function copyTextSync(t){try{const ta=document.createElement('textarea');ta.value=t;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return !!ok}catch{return false}}
+// 요청문이 짧으면 claude.ai 입력창에 미리 채워 열고(?q=), 길면(주소 길이 한도) 빈 새 대화를 열어 붙여 넣게 한다.
+const CLAUDE_Q_MAX=6000;
+function claudeOpenUrl(text){const q=encodeURIComponent(text);return q.length<=CLAUDE_Q_MAX?CLAUDE_URL+'?q='+q:CLAUDE_URL}
 async function copyText(t){try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(t);return true}}catch{}
  try{const ta=document.createElement('textarea');ta.value=t;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return ok}catch{return false}}
 function claudeManualExchange(system,prompt,{json=true}={}){
@@ -3657,8 +3662,8 @@ function claudeManualExchange(system,prompt,{json=true}={}){
   d.style.width='min(860px,96vw)';
   d.innerHTML=`<h3 style="margin-top:0">Claude로 작성 — ${no}번째 요청</h3>
 <p class="muted" style="margin:0 0 6px">${escapeHtml(aiStatus)}</p>
-<ol style="margin:6px 0 10px;padding-left:20px;line-height:1.7"><li><b>요청문 복사</b>를 누릅니다. (상담일지 전문 ${text.length.toLocaleString()}자 포함)</li><li><b>claude.ai 열기</b>를 눌러 새 대화에 붙여 넣고(Ctrl+V) 보냅니다.</li><li>Claude 답변 아래의 <b>복사</b> 버튼으로 답 전체를 복사해 아래 칸에 붙여 넣고 <b>결과 넣기</b>를 누릅니다.</li></ol>
-<div class="toolbar"><button type="button" class="btn primary" id="cdCopy">요청문 복사</button><button type="button" class="btn" id="cdOpen">claude.ai 열기</button><span class="muted" id="cdCopyMsg"></span></div>
+<ol style="margin:6px 0 10px;padding-left:20px;line-height:1.7"><li><b>Claude 채팅으로 보내기</b>를 누릅니다. 요청문(상담일지 전문 포함 ${text.length.toLocaleString()}자)이 복사되고 내 계정의 Claude 새 대화가 열립니다.</li><li>Claude 입력창에 붙여 넣고(Ctrl+V) 보냅니다.${claudeOpenUrl(text)!==CLAUDE_URL?' (짧은 요청은 입력창에 미리 채워져 있으니 보내기만 누르면 됩니다)':''}</li><li>Claude 답변 아래의 <b>복사</b> 버튼으로 답 전체를 복사해 아래 칸에 붙여 넣고 <b>결과 넣기</b>를 누릅니다.</li></ol>
+<div class="toolbar"><button type="button" class="btn primary" id="cdSend">Claude 채팅으로 보내기</button><button type="button" class="btn" id="cdCopy">요청문만 복사</button><button type="button" class="btn" id="cdOpen">claude.ai만 열기</button><span class="muted" id="cdCopyMsg"></span></div>
 <details style="margin:6px 0"><summary class="muted">요청문 보기</summary><textarea id="cdPrompt" readonly style="width:100%;height:160px;font-size:12px"></textarea></details>
 <label for="cdAnswer"><b>Claude 답변 붙여넣기</b></label>
 <textarea id="cdAnswer" style="width:100%;height:200px;font-size:13px" placeholder="Claude가 답한 내용을 여기에 붙여 넣으세요"></textarea>
@@ -3671,13 +3676,16 @@ function claudeManualExchange(system,prompt,{json=true}={}){
   const onAbort=()=>fin(reject,Error(CANCEL_MSG));outer?.signal.addEventListener('abort',onAbort);aiCancelWaiters.push(onAbort);
   $('#cdCopy',d).onclick=async()=>{const ok=await copyText(text);$('#cdCopyMsg',d).textContent=ok?'복사했습니다. claude.ai에 붙여 넣으세요.':'자동 복사가 막혔습니다. ‘요청문 보기’를 열어 전체 선택(Ctrl+A) 후 복사하세요.';if(!ok){$('details',d).open=true;$('#cdPrompt',d).select()}};
   $('#cdOpen',d).onclick=()=>{window.open(CLAUDE_URL,'_blank','noopener')};
+  $('#cdSend',d).onclick=async()=>{const url=claudeOpenUrl(text),pre=url!==CLAUDE_URL;let ok=copyTextSync(text);window.open(url,'_blank','noopener');if(!ok)ok=await copyText(text);
+   $('#cdCopyMsg',d).textContent=pre?'Claude 입력창에 요청문을 채워 열었습니다. 보내기를 누르세요.':ok?'요청문을 복사하고 Claude 새 대화를 열었습니다. 입력창에 붙여 넣고(Ctrl+V) 보내세요.':'Claude 새 대화를 열었지만 자동 복사가 막혔습니다. ‘요청문 보기’를 열어 전체 선택(Ctrl+A) 후 복사하세요.';
+   if(!ok&&!pre){$('details',d).open=true;$('#cdPrompt',d).select()}};
   $('#cdCancel',d).onclick=()=>{fireCancel();fin(reject,Error(CANCEL_MSG))};
   d.oncancel=e=>{e.preventDefault()};
   $('#cdOk',d).onclick=()=>{const ans=$('#cdAnswer',d).value.trim();const err=$('#cdErr',d);
    if(!ans){err.textContent='Claude 답변을 붙여 넣어 주세요.';return}
    if(json){try{safeJson(ans)}catch{err.textContent='답변에서 JSON을 찾지 못했습니다. Claude 답변 전체({ 로 시작해 } 로 끝나는 부분)를 그대로 복사해 붙여 넣으세요. 답이 중간에 끊겼다면 Claude에게 “이어서 계속 써 줘”라고 한 뒤 전체를 합쳐 붙여 넣으세요.';return}}
    fin(resolve,{text:ans,truncated:false})};
-  d.showModal();$('#cdCopy',d).focus();
+  d.showModal();$('#cdSend',d).focus();
  })}
 function aiEngineBoxHtml(busy){
  return `<div class="field" style="margin:12px 0"><b>작성 AI 선택</b><div class="toolbar" style="margin-top:6px"><label style="display:inline-flex;gap:6px;align-items:center"><input type="radio" name="aiEngine" value="claude" ${aiEngine==='claude'?'checked':''} ${busy?'disabled':''}> Claude로 작성(claude.ai 구독 · 복사·붙여넣기)</label><label style="display:inline-flex;gap:6px;align-items:center"><input type="radio" name="aiEngine" value="gemini" ${aiEngine==='gemini'?'checked':''} ${busy?'disabled':''}> Gemini 자동(무료 API)</label></div>

@@ -37,6 +37,9 @@ async function answerAll(t,ai,{wrap=true,max=8}={}){const seen=[];for(let k=0;k<
   const run=t.ev("runLocalAI('plan')");await waitDlg(t);
   t.click('#cdOpen');ok(t.logs.some(l=>l[0]==='open'&&l[1]==='https://claude.ai/new'),'claude.ai 새 대화 열기');
   t.click('#cdCopy');await sleep(20);ok(copied==='y'&&/복사했습니다/.test(t.$('#cdCopyMsg').textContent),'요청문 복사',t.$('#cdCopyMsg').textContent);
+  t.click('#cdSend');await sleep(20);const o=t.logs.filter(l=>l[0]==='open').pop();
+  ok(o&&o[1]==='https://claude.ai/new'&&/복사하고 Claude 새 대화를 열었습니다/.test(t.$('#cdCopyMsg').textContent),'보내기 한 번에 복사+새 대화 열기(긴 요청은 주소에 넣지 않음)',o);
+  ok(t.ev("claudeOpenUrl('짧은 요청')")==='https://claude.ai/new?q='+encodeURIComponent('짧은 요청')&&t.ev("claudeOpenUrl('가'.repeat(3000))")==='https://claude.ai/new','짧은 요청만 입력창에 미리 채움');
   t.click('#cdCancel');await run;}
  console.log('[4] Gemini 자동으로 바꾸면 예전처럼 서버로 보냄');
  {const t=boot(DIR,{stored:stored57(),storage:ENGINE,ai:makeAI()});t.ev("state.view='ai';paint()");
