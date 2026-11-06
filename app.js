@@ -1,7 +1,7 @@
 'use strict';
 // v2.1: 기록 관리는 서버 없이 동작. AI는 사용자가 동의한 경우에만 라이브러리·모델을 외부에서 내려받음.
 const KEY='sehuim_rehab_offline_v1';
-const APP_RELEASE='3.23.1-design-blue';
+const APP_RELEASE='3.23.2-design-blue';
 const $=(s,root=document)=>root.querySelector(s);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s??'').trim();
@@ -1419,7 +1419,10 @@ function groupPlanServices(rows){const out=[];
  for(const r of out)if(!clean(r.resource))r.resource=SVC_BULLET+(SVC_GROUP_RES[r.type]||'내부자원');
  return out.sort((a,b)=>(SVC_GROUPS.indexOf(a.type)+1||99)-(SVC_GROUPS.indexOf(b.type)+1||99))}
 // v3.21.48: '정신과 진료', '정형외과 진료'처럼 끝말이 같은 진료·치료·검사는 '정신과, 정형외과 진료' 한 줄로 묶는다.
-function mergeSameHead(text){const L=String(text||'').split('\n').map(x=>x.replace(/^\s*∎\s*/,'').trim()).filter(Boolean);const out=[],heads=new Map();
+function mergeSameHead(text){const L0=String(text||'').split('\n').map(x=>x.replace(/^\s*∎\s*/,'').trim()).filter(Boolean);const out=[],heads=new Map();
+ // v3.23.2: ‘사회적응훈련(가, 나)’과 ‘사회적응훈련(나, 다)’처럼 이름이 같은 줄은 괄호 안 항목을 합쳐 한 줄로 쓴다.
+ const L=[],paren=new Map();for(const l of L0){const mt=/^([^()]{1,20}?)\s*\((.+)\)$/.exec(l);if(!mt){if(!L.includes(l))L.push(l);continue}const hk=normKey(mt[1]);const items=mt[2].split(/\s*,\s*/).map(x=>x.replace(/\s*등$/,'').trim()).filter(Boolean);if(!paren.has(hk)){paren.set(hk,{head:mt[1].trim(),items:[],at:L.length,etc:/등\s*$/.test(mt[2])});L.push('')}const p=paren.get(hk);for(const it of items)if(!p.items.some(x=>normKey(x)===normKey(it)))p.items.push(it);p.etc=p.etc||/등\s*$/.test(mt[2])}
+ for(const p of paren.values())L[p.at]=`${p.head}(${p.items.join(', ')}${p.etc?' 등':''})`;
  for(const l of L){const mt=/^([^,()]{1,14})\s+(진료|치료|검사)$/.exec(l);if(mt){if(!heads.has(mt[2])){heads.set(mt[2],{at:out.length,names:[]});out.push('')}const h=heads.get(mt[2]);if(!h.names.includes(mt[1]))h.names.push(mt[1])}else out.push(l)}
  for(const [k,h] of heads)out[h.at]=h.names.join(', ')+' '+k;
  return out.filter(Boolean).map(x=>SVC_BULLET+x).join('\n')}
@@ -2040,7 +2043,7 @@ function enforceVerdicts(result){
 // 사건이 성과목표 항목과 관련되는데 AI가 ‘달성함’으로 썼으면 판정을 낮추고 그 사건을 문장에 붙인다.
 // 0건 기준 항목은 사건 1건이면 ‘달성하지 못함’, 그 밖의 항목은 1건이면 ‘부분 달성함’, 반복(2건 이상)이면 ‘달성하지 못함’.
 const INCIDENT_RE=/거부(?!감)|불참|(?:참여|참석|작성|복용|실천|수행|준수)하지\s*않|하지\s*않(?:고|았|음|아|은)|(?:안|못)\s*(?:씻|했|하고|함|지켰|지킴)|중단|무단|위반|가져가|가져간|가져와|가져온|훔|다툼|싸움|언성|폭언|이탈|지각|결석|반복적으로\s*(?:전화|연락)|(?:밤|새벽|늦은\s*시간)[^.。]{0,14}(?:전화|연락)|미준수|미작성|지키지\s*않|재음주|술을\s*마시/g;
-const INCIDENT_SKIP=/줄었|감소|없었|않았다고|개선|나아|좋아|거부하지\s*않|않도록\s*(?:교육|안내|지도|설명|약속)|필요|예정|계획|하기로|약속/;
+const INCIDENT_SKIP=/줄었|감소|없었|않았다고|개선|나아|좋아|거부하지\s*않|않도록\s*(?:교육|안내|지도|설명|약속)|필요|예정|계획|하기로|약속|복통|두통|통증|아파|아프|아픔|몸이\s*(?:안|좋지)|감기|발열|열이\s*(?:나|있)|병원|진료|입원|조퇴|화재|경보|날씨|우천|비가|폭설|휴강|휴무|사정/; // v3.23.2: 아파서·피할 수 없는 사정으로 빠진 일은 판정을 낮추는 사건으로 보지 않음
 const REPEAT_RE=/반복|자주|여러\s*차례|몇\s*차례|매번|계속/;
 const mdOf=d=>{const mt=/\d{4}-(\d{2})-(\d{2})/.exec(String(d||''));return mt?`${+mt[1]}/${+mt[2]}`:''};
 function incidentWindows(t){const out=[];INCIDENT_RE.lastIndex=0;let mt;while((mt=INCIDENT_RE.exec(t))){const pre=t.slice(0,mt.index).trim().split(/\s+/).slice(-3).join(' ');const post=(t.slice(mt.index+mt[0].length).trim().split(/\s+/)[0]||'');out.push(pre+' '+mt[0]+post.replace(/^[가-힣]*/,x=>x.length<=2?x:'')) }return out.join(' ')}
@@ -2058,7 +2061,8 @@ function applyIncidents(g,base,m){const items=[],lines=String(g.result||'').spli
   // 기록된 수치가 기준을 채우면 수치를 따른다.
   {const t=/(\d+(?:\.\d+)?)\s*%\s*이상/.exec(it.tgt);const y=[...it.body.matchAll(/(\d+(?:\.\d+)?)\s*%/g)].map(z=>+z[1]).filter(z=>!t||z!==+t[1]);if(t&&y.length&&y[0]>=+t[1])return `▪ ${it.tgt}\n${it.body}`}
   const dates=[...new Set(inc.map(x=>x.date).filter(Boolean))].sort();const n=Math.max(dates.length||inc.length,inc.some(x=>REPEAT_RE.test(x.s))?2:1);
-  const zero=/(?:^|[^\d])0\s*(?:건|회)|금지/.test(it.tgt);const want=zero||n>=2?'none':'partial';
+  const zero=/(?:^|[^\d])0\s*(?:건|회)|금지/.test(it.tgt);// v3.23.2: 시설 기준 — 0건 기준이 아니면 한 번 있었던 일로는 판정을 낮추지 않고, 2번이면 부분 달성, 3번 이상이면 달성하지 못함
+  if(!zero&&n<2)return `▪ ${it.tgt}\n${it.body}`;const want=zero||n>=3?'none':'partial';
   const rank={full:2,partial:1,none:0};if(rank[want]>=rank[v])return `▪ ${it.tgt}\n${it.body}`;
   const word=want==='none'?'성과목표 달성하지 못함.':'성과목표 부분 달성함.';
   const latest=inc.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];const md=mdOf(latest.date);
@@ -2097,9 +2101,12 @@ function toDash(text){if(isStyled(text))return String(text).trim();
 const NEG_SAY=/퇴소|집에\s*(?:가|갈|보내)|안\s*(?:해|할|갈|가(?!져)|먹|씻)|싫|힘들|못\s*(?:하|해|하겠)|거부|그만|짜증|화나|귀찮|필요\s*없|왜\s*해야|하기\s*싫|나가겠|나갈\s*거|안\s*나가/;
 const POS_SAY=/앞으로|좋(?:아|았|다|네)|재미|즐거|하고\s*싶|해\s*볼|열심|잘\s*(?:하|했|할)|고마|감사|괜찮|나아|뿌듯|편해|기분이\s*좋/;
 const quotesOf=t=>[...String(t||'').matchAll(/[“"]([^”"\n]{2,90})[”"]/g)].map(x=>x[1].trim());
+// v3.23.2: 문장 안에 끼어 있는 말(예: 복장 안내에 “괜찮다”는 답을 반복함)은 그 문장의 뜻을 따르므로 옮기지 않는다. 말만 있는 줄만 옮긴다.
+const EMBED_REST=l=>clean(String(l).replace(/[“"][^”"\n]{2,90}[”"]/g,'').replace(/^[\s\-•·]+/,'').replace(/(?:회원은|회원이)?\s*(?:라고|이라고)?\s*(?:말함|이야기함|표현함|함|말하며)?\s*[.。]?$/,''));
+const standaloneQuotes=t=>String(t||'').split('\n').filter(l=>EMBED_REST(l).length<=4).flatMap(l=>quotesOf(l));
 function fixFactorSides(g){
  const isNeg=q=>NEG_SAY.test(q)&&!POS_SAY.test(q.replace(NEG_SAY,'')),isPos=q=>POS_SAY.test(q)&&!NEG_SAY.test(q);
- const moveNeg=quotesOf(g.achMember).filter(isNeg),movePos=quotesOf(g.blockMember).filter(isPos);
+ const moveNeg=standaloneQuotes(g.achMember).filter(isNeg),movePos=standaloneQuotes(g.blockMember).filter(isPos);
  const strip=(t,qs)=>{let r=String(t||'');for(const q of qs)r=r.replace(new RegExp('[“"]'+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'[”"]','g'),'');return r.replace(/^[\s,·-]+|[\s,·-]+$/g,'').replace(/^(?:회원은|회원이)?\s*(?:라고|이라고)?\s*(?:말함|이야기함|표현함|함)?\.?$/,'').trim()};
  // 긍정·부정 표현이 섞이지 않은 말 없는 문장도 확인한다.
  const achLineNeg=!quotesOf(g.achMember).length&&clean(g.achMember)&&!evalPh(g.achMember)&&NEG_SAY.test(g.achMember)&&!POS_SAY.test(g.achMember);
@@ -2107,7 +2114,7 @@ function fixFactorSides(g){
  if(movePos.length){g.blockMember=strip(g.blockMember,movePos);g.achMember=[...movePos.map(q=>`“${q}”`),...(evalPh(g.achMember)?[]:[clean(g.achMember)])].filter(Boolean).join('\n')}
 }
 function memberFactor(text){if(evalPh(text))return EVAL_NONE;const out=[];
- for(const line of String(text).split('\n').map(x=>x.trim()).filter(Boolean)){const q=[...line.matchAll(/[“"]([^”"\n]{2,90})[”"]/g)].map(x=>`“${x[1].trim()}”`);if(q.length)out.push(...q);else if(!evalPh(line))out.push(...toDash(line).split('\n'))}
+ for(const line of String(text).split('\n').map(x=>x.trim()).filter(Boolean)){const q=[...line.matchAll(/[“"]([^”"\n]{2,90})[”"]/g)].map(x=>`“${x[1].trim()}”`);if(q.length&&EMBED_REST(line).length>4){out.push('- '+line.replace(/^[\s\-•·]+/,''));continue}if(q.length)out.push(...q);else if(!evalPh(line))out.push(...toDash(line).split('\n'))}
  return [...new Set(out)].slice(0,4).join('\n')||EVAL_NONE}
 const staffFactor=t=>evalPh(t)?EVAL_NONE:toDash(t);
 const shortDate=s=>String(s).replace(/(\d{1,2})월\s*(\d{1,2})일\s*:?\s*/,'$1/$2 ');
@@ -4132,7 +4139,7 @@ function compileAIPlan(assessment,action,voice,noteCount,allowedIndices=null,m=n
  for(const [k,v,who] of [['familyNeed','familyVoice','family'],['memberNeed','memberVoice','member']]){p[k]=clean(p[k]).replace(/^\[[^\]]*\]\s*/,'').replace(/(?:가족|회원)\s*직접\s*진술\s*(?:없음|아님)[.。]?\s*/g,'').trim();if(!p[k]||/확인 필요|자료 부족|확인되지 않/.test(p[k]))p[k]=ruleNeed(p[v],who)||p[k]}
  p.managerBasis=p.managerBasis.slice(0,1800);
  p.psycho=(m&&psychoSafe(assessment.psycho,m))||psychoFromAiByKey(assessment.psycho); /* v3.21.58: 칸 밀림 방지 */p.strength=arrN(assessment.strength,3).map(s=>s.slice(0,850));p.weakness=arrN(assessment.weakness,3).map(s=>s.slice(0,850));
- p.goals=(Array.isArray(action.goals)?action.goals:[]).filter(isObj).slice(0,REHAB_GOAL_SLOTS).map(g=>({id:uid(),goalId:clean(str(g.goalId)),...Object.fromEntries(['long','short','plan','activity','target'].map(k=>[k,Array.isArray(g[k])?numList(numItems(g[k])):stringOr(g[k])])),src:srcText(g.src,noteCount,allowedIndices)||'근거 기록 미지정 — 직접 확인'}));
+ p.goals=(Array.isArray(action.goals)?action.goals:[]).filter(isObj).slice(0,Math.max(REHAB_GOAL_SLOTS,(()=>{try{return m?carryGoals(m).length:0}catch{return 0}})())).map(g=>({id:uid(),goalId:clean(str(g.goalId)),...Object.fromEntries(['long','short','plan','activity','target'].map(k=>[k,Array.isArray(g[k])?numList(numItems(g[k])):stringOr(g[k])])),src:srcText(g.src,noteCount,allowedIndices)||'근거 기록 미지정 — 직접 확인'}));
  if(!p.goals.length)throw Error('AI 결과에 유효한 재활목표가 없습니다.');
  p.goals.forEach(numberGoalFields);
  p.services=(Array.isArray(action.services)?action.services:[]).filter(isObj).slice(0,6).map(g=>Object.fromEntries(['type','service','resource'].map(k=>[k,stringOr(g[k])])));

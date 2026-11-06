@@ -51,5 +51,18 @@ let _t0=null;const t0=()=>_t0||(_t0=boot(DIR,{stored:stored57()}));
   ok(/아파서 한 번 빠지거나/.test(C)&&/성과목표에 없는 다른 행동/.test(C),'한 번의 병결·성과목표 밖 행동으로 판정을 낮추지 않음');
   const t2=boot(DIR,{stored:stored57(),ai:makeAI()});await t2.ev("runLocalAI('plan')");const A=t2.prompts.find(p=>/상담일지의 진술·관찰·의사 소견을 종합하여/.test(p.prompt))?.prompt||'';
   ok(/평가어 한 문장으로만/.test(A)&&/학원·행사·물건 이름/.test(A),'심리사회는 영역마다 평가어 한 문장, 구체적 사건 내용 금지');}
+ console.log('[8] v3.23.2 — 장기목표 4개면 4번째 AI 초안도 받음');
+ {const t=boot(DIR,{stored:stored57(),ai:makeAI()});t.ev("{const p=member().plan;p.goals.push({...p.goals[0],id:'g4',long:'용돈 지출을 스스로 관리함.',short:'1. 상담에서 확인된 건강 관련 생활습관을 스스로 조절함.',plan:'- 틀 문장',activity:'',target:''});persist()}");
+  await t.ev("runLocalAI('plan')");const g=t.ev("member().plan.goals.find(x=>x.id==='g4')");
+  ok(g&&/용돈 기입장/.test(g.short)&&!/틀 문장/.test(g.plan),'4번째 목표에 AI 초안이 들어감',g&&[g.short,g.plan]);}
+ console.log('[9] v3.23.2 — 평가 후처리: 병결은 사건 아님, 문장 속 말은 옮기지 않음, 같은 서비스 합치기');
+ {const t=t0();
+  ok(t.ev("INCIDENT_SKIP.test('미술학원 등록을 위해 방문하였으나 복통을 호소하여 수업을 중단하고 귀가함.')"),'아파서 중단한 일은 판정을 낮추는 사건이 아님');
+  const g=t.ev("(()=>{const g={achMember:'- 식사 시간 유지 권유에 동의함.',blockMember:'- 복장 안내에 “괜찮다”는 답을 반복함.'};fixFactorSides(g);return {a:g.achMember,b:memberFactor(g.blockMember)}})()");
+  ok(!/괜찮다/.test(g.a)&&/복장 안내에 “괜찮다”는 답을 반복함/.test(g.b),'문장 속 “괜찮다”는 방해 요인 문장 그대로 둠',g);
+  const g2=t.ev("(()=>{const g={achMember:'',blockMember:'“재미있어요”'};fixFactorSides(g);return g.achMember})()");
+  ok(/재미있어요/.test(g2),'말만 있는 줄은 예전처럼 옮김',g2);
+  const sv=t.ev("mergeSameHead('∎ 사회적응훈련(대형마트 이용, 대형문고 이용, 전시회 관람 등)\\n∎ 개별상담\\n∎ 사회적응훈련(대형마트 이용, 지역행사 참여, 산책)\\n∎ 생활지도(계절 복장, 식사습관)\\n∎ 생활지도(식사습관, 계절 복장)\\n∎ 개별상담')");
+  ok((sv.match(/사회적응훈련/g)||[]).length===1&&/지역행사 참여/.test(sv)&&(sv.match(/생활지도/g)||[]).length===1&&(sv.match(/개별상담/g)||[]).length===1,'같은 이름의 서비스 줄을 하나로 합침',sv);}
  done();
 })();
