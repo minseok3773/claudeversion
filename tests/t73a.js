@@ -13,6 +13,7 @@ const batchAI=ai=>body=>{const p=String(body.prompt);const parts=p.split(/===== 
   ok(/사례관리자가 할 구체적인 지원 방법/.test(sys)&&/reviewNotes/.test(sys)&&/평가어로 압축/.test(sys),'현장 기준(재활계획=사례관리자 지원, 불일치는 따로, 강점·약점 평가어)이 시스템 지시에 있음');
   ok(/재활계획에 필요한 욕구와 문제만 추론/.test(A)&&/familyDialogue는 빈 문자열/.test(A)&&/"reviewNotes":\[\]/.test(A),'회원 욕구는 재활계획에 필요한 것만 추론, 가족 말은 기록에 있을 때만, reviewNotes 칸');
   ok(/사건 나열 없이 평가어로 압축/.test(A)&&/잦은 충돌이 있었음/.test(A),'심리사회 영역은 사건 나열 없이 평가어로 압축');
+  {const C=t.prompts.find(p=>/\[실천모델 평가\]/.test(p.prompt))?.prompt||'';ok(!C||/문제 기록이 없으면 횟수 기록이 없어도 ‘성과목표 달성함’/.test(C),'평가서: 문제 기록이 없으면 달성함')}
   ok(/오타·맞춤법·띄어쓰기/.test(sys)&&/오타·띄어쓰기·조사/.test(A),'오타 점검 지시가 있음');
   ok(!/측정 수치는 target에 쓴다|재활계획은 회원이 원하는 변화와 실천 행동의 관계를 우선|3개까지 채우되|월 1회 상담은 측정·점검을 돕는 보조 수단일 뿐/.test(B),'단기목표 숫자 빼기·회원 행동 우선·3개 채우기·점검 금지 지시가 없음');
   ok(/항목마다 회원의 행동과 판정 기준/.test(B)&&/사례관리자가 할 구체적인 지원 방법을 ‘- ’ 줄로/.test(B)&&/같은 행동·같은 숫자 기준/.test(B)&&/목표도 그 개수만 쓴다/.test(B),'단기목표 측정 기준·재활계획=사례관리자 지원·성과목표=단기목표 기준·근거만큼 목표');}
@@ -32,5 +33,8 @@ const batchAI=ai=>body=>{const p=String(body.prompt);const parts=p.split(/===== 
   ok(t.ev('member().aiReviewNotes?.notes?.length')===2,'검토 의견을 회원 자료에 저장',t.ev('member().aiReviewNotes'));}
  console.log('[3] 강점 평가어 ‘수용성이 높음’을 바꾸지 않음');
  {const t=boot(DIR,{stored:stored57()});ok(t.ev("plainKo('상담 개입에 대한 수용성이 높음.')")==='상담 개입에 대한 수용성이 높음.','수용성이 높음 그대로',t.ev("plainKo('상담 개입에 대한 수용성이 높음.')"));}
+ console.log('[4] 평가서 — 문제 기록이 없으면 횟수 기록이 없어도 달성함');
+ {const t=boot(DIR,{stored:stored57(),ai:makeAI()});await t.ev("runLocalAI('eval')");const C=t.prompts.find(p=>/\[실천모델 평가\]/.test(p.prompt))?.prompt||'';
+  ok(/\[판정 원칙 — 시설 기준\]/.test(C)&&/문제 기록이 없으면 횟수 기록이 없어도 ‘성과목표 달성함’/.test(C)&&!/달성했다는 기록 근거가 없으면/.test(C),'평가 요청문에 새 판정 원칙이 있고 옛 기준은 없음')}
  done();
 })();
