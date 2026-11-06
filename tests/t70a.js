@@ -22,10 +22,10 @@ ${grab('const PSY_NONE=',';\n')}
 ${grab('function mergeAssessment(','\n return out}')}
 return {evidenceLines,mergeAssessment};`)();
 (async()=>{
- console.log('[1] 답 길이 한도: 10,000토큰 요청을 받고, 16,000을 넘으면 거절');
+ console.log('[1] 답 길이 한도: 10,000토큰 요청을 받고, 65,536을 넘으면 거절(v3.23.8)');
  {const r=await run(fresh(),OK,B(10000));ok(r.status===200&&calls[0].body.generationConfig.maxOutputTokens===10000,'10,000토큰 그대로 구글에 보냄',r.body);
   ok(r.body.usage&&r.body.usage.thinking===7,'생각에 쓴 토큰도 사용량에 표시',r.body.usage);
-  const r2=await run(fresh(),OK,B(16001));ok(r2.status===400&&r2.body.error.code==='BAD_INPUT','16,000 초과는 거절',r2.body);}
+  const r2=await run(fresh(),OK,B(65537));ok(r2.status===400&&r2.body.error.code==='BAD_INPUT','65,536 초과는 거절',r2.body);}
  console.log('[2] GEMINI_THINKING_LEVEL을 넣으면 3 이후 모델에만 생각 깊이를 보냄');
  {process.env.GEMINI_THINKING_LEVEL='low';await run(fresh(),OK,B(800));ok(calls[0].body.generationConfig.thinkingConfig?.thinkingLevel==='low','low로 보냄',calls[0].body.generationConfig);
   process.env.GEMINI_THINKING_LEVEL='aaa';await run(fresh(),OK,B(800));ok(!('thinkingConfig' in calls[0].body.generationConfig),'잘못된 값은 보내지 않음');

@@ -11,7 +11,8 @@ const keepsTemperature=m=>{const v=/^gemini-(\d+(?:\.\d+)?)-/.exec(String(m||'')
 const MODEL_RE=/^gemini-[a-z0-9.-]{4,90}$/;
 // v3.21.70: 답 길이 한도를 4,500 → 16,000토큰으로 늘림. Gemini 3 계열은 '생각(thinking)'에 쓴 토큰도 이 한도 안에서 쓰므로,
 // 한도가 낮으면 생각하느라 한도를 다 쓰고 실제 답(계획서 문장)이 짧아지거나 중간에 잘렸음. 무료 등급 모델의 출력 한도(65,536) 안임.
-const MAX_OUT=16000;
+// v3.23.8: Claude와 같은 요청문 하나로 욕구·목표·평가를 한 번에 받으므로 모델 출력 한도(65,536)까지 허용한다.
+const MAX_OUT=65536;
 // 생각 깊이(선택): Vercel 환경변수 GEMINI_THINKING_LEVEL = minimal | low | medium | high. 넣지 않으면 모델 기본값을 쓴다.
 const THINK_RE=/^(minimal|low|medium|high)$/;
 const thinksByLevel=m=>{const v=/^gemini-(\d+(?:\.\d+)?)-/.exec(String(m||''));return !!v&&Number(v[1])>=3};
@@ -87,12 +88,12 @@ module.exports=async function(req,res){
  const system=typeof b?.system==='string'?b.system:'';
  const prompt=typeof b?.prompt==='string'?b.prompt:'';
  const maxTokens=Number(b?.maxTokens);
- if(system.length<10||system.length>4000||prompt.length<10||prompt.length>110000||!Number.isInteger(maxTokens)||maxTokens<100||maxTokens>MAX_OUT)
+ if(system.length<10||system.length>4000||prompt.length<10||prompt.length>600000||!Number.isInteger(maxTokens)||maxTokens<100||maxTokens>MAX_OUT)
   return send(res,400,{error:{message:'AI 요청 자료의 길이 또는 형식이 올바르지 않습니다.',code:'BAD_INPUT'}});
  const configuredModel=(process.env.GEMINI_MODEL||DEFAULT_MODEL).trim();
  if(!MODEL_RE.test(configuredModel))return send(res,503,{error:{message:'Gemini 모델 설정이 올바르지 않습니다.',code:'MODEL_CONFIG_ERROR'}});
  let model=autoModel.from===configuredModel&&autoModel.to?autoModel.to:configuredModel;
- const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),110000); // v3.21.70: 긴 답을 쓸 시간 확보(vercel.json maxDuration 120초)
+ const ctrl=new AbortController(),timeout=setTimeout(()=>ctrl.abort(),290000); // v3.23.8: 한 번에 쓰는 긴 답(vercel.json maxDuration 300초)
  try{
   // v3.21.54: 붙여넣을 때 섞인 공백·줄바꿈·보이지 않는 문자·한글을 뺀다(이런 글자가 있으면 구글에 요청 자체를 보내지 못함).
   const key=String(process.env.GEMINI_API_KEY||'').replace(/[^\x21-\x7E]/g,'');

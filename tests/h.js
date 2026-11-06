@@ -3,6 +3,8 @@ const {JSDOM}=require('jsdom');const fs=require('fs');const path=require('path')
 const KEY='sehuim_rehab_offline_v1';
 function fakeResponse(data,status=200){const text=typeof data==='string'?data:JSON.stringify(data);return{ok:status>=200&&status<300,status,text:async()=>text,json:async()=>JSON.parse(text),headers:{get:()=>null}}}
 function boot(dir,{stored,confirmFn,ai,storage,pdf,aiStatus,guidance,research}={}){
+ // v3.23.8: 예전 시험은 Gemini 단계별 요청을 살핀다. Claude와 같은 요청문 1회 방식은 storage에 rehab_gemini_oneshot_v1:'on'을 넣어 시험한다.
+ storage={rehab_gemini_oneshot_v1:'off',...(storage||{})};
  let html=fs.readFileSync(path.join(dir,'index.html'),'utf8').replace('<script src="app.js" defer></script>','');
  const dom=new JSDOM(html,{url:'https://claude-rehab-plan.vercel.app/',runScripts:'outside-only',pretendToBeVisual:true});
  const w=dom.window;const logs=[];const prompts=[];const guidanceCalls=[];const researchCalls=[];
