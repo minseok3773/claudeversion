@@ -106,5 +106,22 @@ let _t0=null;const t0=()=>_t0||(_t0=boot(DIR,{stored:stored57()}));
   const t=boot(DIR,{stored:stored57(),ai});await t.ev("runLocalAI('plan')");const p=t.ev('member().plan');
   ok(p.goals.some(g=>String(g.short).length>1800),'긴 단기목표(1800자 넘음)도 그대로',p.goals.map(g=>String(g.short).length));
   ok(!p.goals.some(g=>/\(협의 후 확정\)/.test(g.target)),'성과목표에 ‘(협의 후 확정)’을 자동으로 붙이지 않음',p.goals.map(g=>g.target));}
+ console.log('[14] 요청문 문제점 고치기(v3.23.5)');
+ {const st=stored57();st.members[0].periodStart='';st.members[0].periodEnd='';const t=boot(DIR,{stored:st});
+  const line=t.ev('periodLine(member())');ok(/^평가기간: 2026-\d\d-\d\d ~ 2026-\d\d-\d\d \(평가기간이 입력되지 않아 체크한 상담일지 날짜로 정함\)\.$/.test(line)&&!/미지정/.test(line),'평가기간이 비면 체크한 상담일지 날짜로',line);
+  const own=t.ev("[...dxOwn({psychiatricConditions:['조현정동장애']})]");
+  ok(t.ev("dxOffTopic('전환장애는 신경학적 원인 없이 운동 기능 증상이 나타난다.',dxOwn({psychiatricConditions:['조현정동장애']}))")===true&&t.ev("dxOffTopic('조현병 회원의 사회기술훈련은 효과가 있다.',dxOwn({psychiatricConditions:['조현정동장애']}))")===false&&t.ev("dxOffTopic('일과를 함께 짜고 쉬운 활동부터 늘린다.',dxOwn({psychiatricConditions:['조현정동장애']}))")===false,'회원 진단과 다른 장애(전환장애) 대목은 뺌',own);
+  const ch=t.ev("referenceChunks('첫 문장은 이렇다. '.repeat(30)+'\\n'+'두 번째 단락의 문장이다. '.repeat(40)).map(x=>x.body)");
+  ok(ch.length>1&&ch.every(x=>/[.]$/.test(x)&&x.length<=620),'전문자료는 문장 끝에서 나눔(중간에서 자르지 않음)',ch.map(x=>x.length));}
+ {const st=stored57();const other=JSON.parse(JSON.stringify(st.members[0]));other.id='mem-b';other.label='회원 002';other.plan.strength=['시작부터 끝까지 조용한 태도로 프로그램에 임함.'];other.notes=[];st.members.push(other);
+  st.members[0].plan.strength=['산책 프로그램에 꾸준히 참여함.','시작부터 끝까지 조용한 태도로 프로그램에 임함.'];
+  const t=boot(DIR,{stored:st});const p=t.ev('evalSWPrompt(member())');
+  ok(/산책 프로그램에 꾸준히 참여함/.test(p)&&!/조용한 태도/.test(p),'다른 회원 문서와 같고 이 회원 상담일지에 없는 강점은 보내지 않음',p);}
+ {const t=boot(DIR,{stored:stored57(),storage:ENGINE,ai:batchAI(makeAI())});t.ev("runLocalAI('plan-eval')");const d=await waitDlg(t);
+  const txt=d?t.ev("document.querySelector('#cdPrompt').value"):'';
+  ok(d&&!/〔/.test(txt)&&/goals의 1번째 목표/.test(txt),'계획서+평가서 한 번에: 자리표시 없이 “앞 단계 N번째 목표”로 가리킴');
+  ok((txt.match(/\[관련 전문자료 — /g)||[]).length<=1,'전문자료는 한 단계에만',(txt.match(/\[관련 전문자료 — /g)||[]).length);
+  ok((txt.match(/^평가기간: /gm)||[]).length===1,'평가기간 줄은 한 번만',(txt.match(/^평가기간: /gm)||[]).length);
+  t.ev("document.querySelector('#claudeDlg')?.close?.()");}
  done();
 })();
