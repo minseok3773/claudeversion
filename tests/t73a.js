@@ -17,7 +17,7 @@ let _t0=null;const t0=()=>_t0||(_t0=boot(DIR,{stored:stored57()}));
   {const C=t.prompts.find(p=>/\[실천모델 평가\]/.test(p.prompt))?.prompt||'';ok(!C||/문제 기록이 없으면 횟수 기록이 없어도 ‘성과목표 달성함’/.test(C),'평가서: 문제 기록이 없으면 달성함')}
   ok(/오타·맞춤법·띄어쓰기/.test(sys)&&/오타·띄어쓰기·조사/.test(A),'오타 점검 지시가 있음');
   ok(!/측정 수치는 target에 쓴다|재활계획은 회원이 원하는 변화와 실천 행동의 관계를 우선|3개까지 채우되|월 1회 상담은 측정·점검을 돕는 보조 수단일 뿐/.test(B),'단기목표 숫자 빼기·회원 행동 우선·3개 채우기·점검 금지 지시가 없음');
-  ok(/항목마다 회원의 행동과 판정 기준/.test(B)&&/사례관리자가 할 구체적인 지원 방법을 ‘- ’ 줄로/.test(B)&&/같은 행동·같은 숫자 기준/.test(B)&&/목표도 그 개수만 쓴다/.test(B),'단기목표 측정 기준·재활계획=사례관리자 지원·성과목표=단기목표 기준·근거만큼 목표');}
+  ok(/항목마다 회원의 행동과 판정 기준/.test(B)&&/사례관리자가 앞으로 6개월 동안 할 구체적인 지원 방법을 ‘- ’ 줄로/.test(B)&&/같은 행동·같은 숫자 기준/.test(B)&&/목표도 그 개수만 쓴다/.test(B),'단기목표 측정 기준·재활계획=사례관리자 지원·성과목표=단기목표 기준·근거만큼 목표');}
  console.log('[2] 한 번에 보내는 요청문 — 중복 안내 한 번만, 마지막 점검은 상담일지 뒤, 자리표시 정리');
  {const t=boot(DIR,{stored:stored57(),storage:ENGINE});const run=t.ev("runLocalAI('plan-eval')");const d=await waitDlg(t);const full=t.$('#cdPrompt').value;
   const ev=full.indexOf('===== [상담일지 전문] ====='),chk=full.indexOf('[상담일지를 다 읽은 뒤 단계별 마지막 점검]');
@@ -72,5 +72,39 @@ let _t0=null;const t0=()=>_t0||(_t0=boot(DIR,{stored:stored57()}));
   ok(/함\.?$|임\.?$/.test(p.strength.filter(Boolean)[0]||'함'),'강점은 ‘~함/~임’ 그대로',p.strength);
   ok(/달성함|달성하지 못함/.test(e.goals.map(x=>x.result).join('\n')),'평가 결과는 ‘~함’ 그대로');
   ok(t.ev("futureText('- 회원을 도울 계획임.\\n1. 복장을 갖춰 입음.\\n2. 상담이 필요함.')")==='- 회원을 돕는다.\n1. 복장을 갖춰 입는다.\n2. 상담이 필요하다.','어미 바꾸기(불규칙·형용사 포함)');}
+ console.log('[11] 지금 상황과 맞지 않는 기존 장기목표는 고친 문구를 제안하고 담당자가 고르면 바꿈(v3.23.4)');
+ {const base=makeAI();const NEW='가구사업소 근무를 유지하며 직업생활에 안정적으로 적응한다.';
+  const ai=body=>{const o=base(body);if(Array.isArray(o.goals)&&/\[현재 승인·작성된 장기목표/.test(String(body.prompt))){const g=o.goals.find(x=>x.goalId==='g1');if(g){g.longRevise=NEW;g.longReason='이미 근무 중이어서 구직 준비가 맞지 않음.'}}return o};
+  for(const yes of [true,false]){const t=boot(DIR,{stored:stored57(),ai,confirmFn:m=>/장기목표 \d+개가 회원의 지금 상황과 맞지 않는다/.test(m)?yes:true});await t.ev("runLocalAI('plan')");
+   const g=t.ev("member().plan.goals.find(x=>x.id==='g1')");const asked=t.logs.some(l=>l[0]==='confirm'&&/제안: 가구사업소 근무를 유지하며/.test(l[1])&&/이유: 이미 근무 중/.test(l[1]));
+   const notes=JSON.stringify(t.ev("member().aiReviewNotes")||{});
+   if(yes)ok(asked&&g.long===NEW&&/지금 상황에 맞게 바꿈/.test(notes)&&!('longRevise' in g),'확인하면 제안한 장기목표로 바꾸고 검토 의견에 남김',[g.long,notes]);
+   else ok(/생활리듬/.test(g.long)&&/맞지 않을 수 있음/.test(notes),'취소하면 지금 장기목표를 두고 검토 의견에 남김',[g.long,notes]);}
+  }
+ {const t=boot(DIR,{stored:stored57(),ai:makeAI()});await t.ev("runLocalAI('plan')");const B=t.prompts.find(p=>/\[현재 승인·작성된 장기목표/.test(p.prompt))?.prompt||'';
+  ok(/"longRevise":""/.test(B)&&/이미 취업해 근무 중인데 ‘구직 준비’/.test(B),'요청문: 맞지 않는 장기목표는 longRevise로 제안');
+  ok(/지금 수준\(기준선\)/.test(B)&&/이미 문제없이 하고 있는 일/.test(B),'요청문: 단기목표는 기준선에서 나아질 변화');
+  ok(/상담일지의 지난 일\(날짜, 사건, 회원이 한 말의 인용\)은 재활계획에 옮겨 적지 않는다/.test(B)&&/단기목표 번호마다 그것을 돕는 지원이 한 줄 이상/.test(B),'요청문: 재활계획은 앞으로의 지원, 인용 금지');
+  ok(/사례관리자가 본 문제: .+\(/.test(B),'요청문: 사례관리자가 본 문제를 이유까지 넘김');
+  ok(!/할 계획임/.test(B.split('[근거]')[0]),'요청문에 ‘~할 계획임’ 지시가 남지 않음');}
+ console.log('[12] AI로 보내기 전 개인정보 가명 처리(v3.23.4)');
+ {const t=t0();const m=x=>t.ev('maskPII('+JSON.stringify(x)+')');
+  ok(m('김철수 회원이 010-1234-5678로 연락함. 보호자 이영희 어머니가 방문함.')==='가명A 회원이 [연락처]로 연락함. 보호자 가명B 어머니가 방문함.','이름+호칭은 가명, 전화는 [연락처]');
+  ok(m('주민번호 900101-1234567, a.b@x.com, 월드컵로 12에 거주, 101동 202호, 계좌 110-123-456789')==='주민번호 [주민번호], [이메일], [주소]에 거주, [주소], [계좌번호]','주민번호·이메일·주소·계좌');
+  ok(m('산책로 2회 걸음. 학교로 3시에 감. [기록 15 / 2025-09-25 / 상담] ① 이번 회원 상담')==='산책로 2회 걸음. 학교로 3시에 감. [기록 15 / 2025-09-25 / 상담] ① 이번 회원 상담','횟수·시간·날짜·기록 번호는 그대로');
+  ok(m('김철수 회원과 김철수씨')==='가명A 회원과 가명A씨','같은 이름은 같은 가명');}
+ {const st=stored57();st.members[0].notes.forEach(n=>n.content+='\n박민수 회원 보호자 연락처 010-9876-5432, 주소 한강로 45.');
+  const t=boot(DIR,{stored:st,ai:makeAI()});await t.ev("runLocalAI('plan')");const all=t.prompts.map(p=>p.system+'\n'+p.prompt).join('\n');
+  ok(t.prompts.length&&!/010-9876-5432|박민수|한강로 45/.test(all)&&/\[연락처\]/.test(all)&&/가명[A-Z] 회원/.test(all),'Gemini로 보내는 요청문에 실명·연락처·주소가 없음');}
+ {const st=stored57();st.members[0].notes.forEach(n=>n.content+='\n박민수 회원 보호자 연락처 010-9876-5432.');
+  const t=boot(DIR,{stored:st,storage:ENGINE,ai:batchAI(makeAI())});const run=t.ev("runLocalAI('plan')");const d=await waitDlg(t);
+  const txt=d?t.ev("(document.querySelector('#claudeDlg textarea')||{}).value||document.querySelector('#claudeDlg').textContent"):'';
+  ok(d&&/\[연락처\]/.test(txt)&&!/010-9876-5432|박민수/.test(txt),'Claude 요청문(복사할 글)에도 가림',txt.length);t.ev("document.querySelector('#claudeDlg')?.close?.()");}
+ console.log('[13] AI 답을 칸에 넣을 때 글자 수로 자르지 않음(v3.23.4)');
+ {const base=makeAI();const LONG='회원은 '+'미술 활동에 대한 흥미가 높고 작품을 꾸준히 완성하며 '.repeat(40)+'성취감을 느낌.';const LS='1. '+'계획한 미술학원 수업에 빠지지 않고 참여한다 '.repeat(90)+'.\n2. 월 1회 보호자 상담에 참여한다.';
+  const ai=body=>{const o=base(body);if(Array.isArray(o.goals)&&o.goals[0])o.goals[0].short=LS;return o};
+  const t=boot(DIR,{stored:stored57(),ai});await t.ev("runLocalAI('plan')");const p=t.ev('member().plan');
+  ok(p.goals.some(g=>String(g.short).length>1800),'긴 단기목표(1800자 넘음)도 그대로',p.goals.map(g=>String(g.short).length));
+  ok(!p.goals.some(g=>/\(협의 후 확정\)/.test(g.target)),'성과목표에 ‘(협의 후 확정)’을 자동으로 붙이지 않음',p.goals.map(g=>g.target));}
  done();
 })();
