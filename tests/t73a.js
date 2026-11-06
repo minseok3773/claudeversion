@@ -156,5 +156,13 @@ let _t0=null;const t0=()=>_t0||(_t0=boot(DIR,{stored:stored57()}));
   const ai=body=>{const o=base(body);if(Array.isArray(o.goals)&&/\[실천모델 평가\]/.test(String(body.prompt))&&o.goals[0])o.goals[0].result=[NOREC,'점검표를 확인함. 성과목표 달성함.'];return o};
   const t=boot(DIR,{stored:stored57(),ai});await t.ev("runLocalAI('eval')");const r=t.ev("member().evaluation.goals[0].result");
   ok(/기록이 없어 평가가 어려움, 기록 확인 필요/.test(r)&&!/산책[^\n]*성과목표 (?:부분 )?달성함/.test(r),'횟수 기록 없는 성과목표는 ‘평가가 어려움·기록 확인 필요’ 그대로(달성으로 바꾸지 않음)',r);}
- done();
+console.log('[17] v3.23.7 — 0건 유지는 관련 기록 전체 확인 시에만 달성, 옛 강점·약점은 보내지 않음');
+ {const SET="{const p=member().plan;p.strength=['시작부터 끝까지 조용한 태도로 프로그램 설명을 듣는 모습을 보였고.','산책 프로그램에 꾸준히 참여함.'];p.weakness=['장기간 근무한 경험이 없어 적응에 어려움이 있을 것으로.'];p.swPinned=true;persist()}";
+  const t=boot(DIR,{stored:stored57(),storage:ENGINE});t.ev(SET);const run=t.ev("runLocalAI('plan-eval')");await waitDlg(t);const full=t.$('#cdPrompt').value;
+  ok(/생활일지, 사고보고서 등 평가기간의 관련 기록 전체에서 해당 행동이 발생하지 않은 것으로 확인될 때 달성함/.test(full)&&/사건이 없었다고 추정하지 않고 ‘평가가 어려움, 기록 확인 필요’/.test(full)&&!/한 번도 기록되지 않았으면 달성함/.test(full),'0건 유지: 관련 기록 전체 확인 시에만 달성, 아니면 기록 확인 필요');
+  ok(/\[회원의 강점·약점 — 계획서\] step1에서 현재 회원의 상담일지만 근거로 작성한 strength와 weakness를 사용한다\. 이전 회원, 과거 예시, 공용자료의 강점·약점은 사용하지 않는다\./.test(full),'한 번에 보내면 평가는 step1 강점·약점만 씀');
+  ok(!/보였고\.|있을 것으로\./.test(full),'중간에 끊긴 강점·약점 문장은 요청문에 없음');
+  t.click("#cdCancel");await run.catch(()=>{});}
+ {const t=t0();ok(!t.ev("swComplete('조용한 태도로 설명을 듣는 모습을 보였고.')")&&!t.ev("swComplete('적응에 어려움이 있을 것으로.')")&&t.ev("swComplete('산책 프로그램에 꾸준히 참여함.')"),'끊긴 문장 알아보기');}
+  done();
 })();
