@@ -7,7 +7,7 @@ const AREA=[
  [/금전|용돈|지출/, {short:['용돈 기입장을 주 1회 함께 확인함.','군것질 지출을 주 2회 이하로 줄임.'],plan:['용돈 기입장을 주 1회 함께 확인할 계획임(과제중심모델)','군것질 지출을 함께 점검할 계획임(문제중심모델)'],target:['용돈 기입장 확인 주 1회','군것질 지출 주 2회 이하']}]];
 function pickArea(long){for(const [re,v] of AREA)if(re.test(long))return v;return AREA[0][1]}
 function stepOf(prompt){if(/\[문항 점검 — 초안 고쳐 쓰기\]/.test(prompt))return 'A2';if(/\[실천모델 평가\]/.test(prompt))return 'C';if(/\[현재 승인·작성된 장기목표/.test(prompt))return 'B';if(/상담일지의 진술·관찰·의사 소견을 종합하여/.test(prompt))return 'A';return '?'}
-function makeAI({newLongs=[]}={}){return body=>{const p=String(body.prompt||'');const st=stepOf(p);
+function makeAI({newLongs=[]}={}){let lastB=null;return body=>{const p=String(body.prompt||'');const st=stepOf(p);
  if(st==='A'||st==='A2')return{memberDialogue:'“걸으니까 기분이 좋다”',familyDialogue:'“꾸준히 운동했으면 좋겠어요.”',memberNeed:'- 산책을 꾸준히 하기를 희망함.',familyNeed:'- 가족은 회원이 건강하게 지내기를 희망함.',
   managerItems:[{title:'생활리듬 유지',reason:'산책 프로그램 참여를 거부한 날이 있음.',src:[1,5]},{title:'금전관리',reason:'용돈 기입장 작성을 어려워함.',src:[4]}],
   psycho:{primarySupport:'',socialEnvironment:'',education:'',employment:'',housing:'',finance:'용돈 관리가 어려움.',physicalHealth:'',otherPsychosocial:''},
@@ -16,8 +16,10 @@ function makeAI({newLongs=[]}={}){return body=>{const p=String(body.prompt||'');
   const goals=lines.map(l=>{const mt=/^\d+\. goalId=(\S+) \/ 장기목표=(.*)$/.exec(l);const v=pickArea(mt[2]);return{goalId:mt[1],long:mt[2],short:v.short,plan:v.plan,activity:v.plan,target:v.target,src:[1]}});
   for(const long of newLongs){const v=pickArea(long);goals.push({goalId:'',long,short:v.short,plan:v.plan,activity:v.plan,target:v.target,src:[4]})}
   if(!goals.length)for(const long of ['규칙적인 생활리듬을 유지함.','정신과적 증상을 스스로 관리함.','합리적으로 금전을 사용함.']){const v=pickArea(long);goals.push({goalId:'',long,short:v.short,plan:v.plan,activity:v.plan,target:v.target,src:[1]})}
-  return{goals,services:[{type:'사회심리재활',service:'■ 프로그램(산책, 요리)',resource:'■ 내부자원'},{type:'건강관리',service:'■ 정신건강의학과 진료',resource:'■ 외래 진료 기관'}]}}
- if(st==='C'){const items=[...p.matchAll(/목표 \d+: goalId=(\S+) \/ 단기목표 원문/g)].map(x=>x[1]);
+  lastB=goals;return{goals,services:[{type:'사회심리재활',service:'■ 프로그램(산책, 요리)',resource:'■ 내부자원'},{type:'건강관리',service:'■ 정신건강의학과 진료',resource:'■ 외래 진료 기관'}]}}
+ if(st==='C'){let items=[...p.matchAll(/목표 \d+: goalId=(\S+) \/ 단기목표 원문/g)].map(x=>x[1]);
+  // v3.23.6: 한 번에 보내는 요청문은 ‘목표 1~N: stepG goals의 목표마다’로 가리킨다 — 가짜 Claude도 앞 단계에서 쓴 목표를 기억해 같은 개수로 답한다.
+  if(!items.length&&/목표 1~N: step\d goals의 목표마다/.test(p)&&lastB)items=lastB.map(g=>g.goalId||'');
   return{participation:[{type:'사회심리재활',service:'∎ 프로그램(산책, 요리)',resource:'∎ 내부자원(사례관리자)'}],
    goals:items.map((id,i)=>({goalId:id,activity:['산책 프로그램에 참여하여 호수공원을 다녀옴.','점검표를 함께 확인함.'],result:['산책 프로그램에 참여함. 성과목표 부분 달성함.','점검표를 확인함. 성과목표 달성함.'],analysis:'- 참여가 이어짐.',achMember:i===0?'- 복약을 스스로 챙김.':'해당사항 없음',achStaff:'- 직원이 참여를 독려함.',blockMember:i===0?'“오늘은 힘들어서 안 갈래요”':'해당사항 없음',blockStaff:'해당사항 없음'})),
    overall:'- 목표 활동에 참여함.',opinion:'- 산책 참여를 이어 감.'}}

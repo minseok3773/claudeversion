@@ -14,7 +14,7 @@ let _t0=null;const t0=()=>_t0||(_t0=boot(DIR,{stored:stored57()}));
   ok(/사례관리자가 할 구체적인 지원 방법/.test(sys)&&/reviewNotes/.test(sys)&&/평가어로 압축/.test(sys),'현장 기준(재활계획=사례관리자 지원, 불일치는 따로, 강점·약점 평가어)이 시스템 지시에 있음');
   ok(/재활계획에 필요한 욕구와 문제만 추론/.test(A)&&/familyDialogue는 빈 문자열/.test(A)&&/"reviewNotes":\[\]/.test(A),'회원 욕구는 재활계획에 필요한 것만 추론, 가족 말은 기록에 있을 때만, reviewNotes 칸');
   ok(/사건 나열 없이 평가어 한 문장으로 압축/.test(A)&&/잦은 충돌이 있었음/.test(A),'심리사회 영역은 사건 나열 없이 평가어로 압축');
-  {const C=t.prompts.find(p=>/\[실천모델 평가\]/.test(p.prompt))?.prompt||'';ok(!C||/문제 기록이 없으면 횟수 기록이 없어도 ‘성과목표 달성함’/.test(C),'평가서: 문제 기록이 없으면 달성함')}
+  {const C=t.prompts.find(p=>/\[실천모델 평가\]/.test(p.prompt))?.prompt||'';ok(!C||/문제 기록이 없다는 것만으로 달성으로 보지 않는다/.test(C),'평가서: 문제 기록이 없다는 것만으로 달성으로 보지 않음')}
   ok(/오타·맞춤법·띄어쓰기/.test(sys),'오타 점검 지시가 있음(공통 지침에 한 번)');
   ok(!/측정 수치는 target에 쓴다|재활계획은 회원이 원하는 변화와 실천 행동의 관계를 우선|3개까지 채우되|월 1회 상담은 측정·점검을 돕는 보조 수단일 뿐/.test(B),'단기목표 숫자 빼기·회원 행동 우선·3개 채우기·점검 금지 지시가 없음');
   ok(/항목마다 회원의 행동과 판정 기준/.test(B)&&/사례관리자가 앞으로 6개월 동안 할 구체적인 지원 방법을 ‘- ’ 줄로/.test(B)&&/같은 행동·같은 숫자 기준/.test(B)&&/목표도 그 개수만 쓴다/.test(B),'단기목표 측정 기준·재활계획=사례관리자 지원·성과목표=단기목표 기준·근거만큼 목표');}
@@ -34,9 +34,11 @@ let _t0=null;const t0=()=>_t0||(_t0=boot(DIR,{stored:stored57()}));
   ok(t.ev('member().aiReviewNotes?.notes?.length')===2,'검토 의견을 회원 자료에 저장',t.ev('member().aiReviewNotes'));}
  console.log('[3] 강점 평가어 ‘수용성이 높음’을 바꾸지 않음');
  {const t=boot(DIR,{stored:stored57()});ok(t.ev("plainKo('상담 개입에 대한 수용성이 높음.')")==='상담 개입에 대한 수용성이 높음.','수용성이 높음 그대로',t.ev("plainKo('상담 개입에 대한 수용성이 높음.')"));}
- console.log('[4] 평가서 — 문제 기록이 없으면 횟수 기록이 없어도 달성함');
+ console.log('[4] 평가서 — 실제 수행 횟수로 판정(v3.23.6: 기록 없으면 달성으로 쓰지 않음)');
  {const t=boot(DIR,{stored:stored57(),ai:makeAI()});await t.ev("runLocalAI('eval')");const C=t.prompts.find(p=>/\[실천모델 평가\]/.test(p.prompt))?.prompt||'';
-  ok(/\[판정 원칙 — 시설 기준\]/.test(C)&&/문제 기록이 없으면 횟수 기록이 없어도 ‘성과목표 달성함’/.test(C)&&!/달성했다는 기록 근거가 없으면/.test(C),'평가 요청문에 새 판정 원칙이 있고 옛 기준은 없음')}
+  ok(/\[판정 원칙 — 실제 수행 기록으로 판정\]/.test(C)&&!/문제 기록이 없으면 횟수 기록이 없어도|문제가 기록되지 않았으면 계획대로 잘 수행한 것으로 보고/.test(C),'평가 요청문에 새 판정 원칙이 있고 ‘문제 기록 없으면 달성’ 규칙은 없음')
+  ok(/주 3회 이상\)이면 ‘성과목표 달성함’/.test(C)&&/주 1~2회\) 기준의 절반 이상은 ‘성과목표 부분 달성함’, 절반 미만은 ‘성과목표 달성하지 못함’/.test(C)&&/0회면 ‘성과목표 달성하지 못함’/.test(C)&&/평가가 어려움, 기록 확인 필요/.test(C)&&/권유·안내·교육만 하고 회원이 실제로 했는지 확인되지 않은 것은 실적으로 세지 않는다/.test(C),'판정표 5가지(기준 이상·1~2회·0회·기록 없음·권유만)가 들어감');
+  ok(/"reviewNotes":\[\]/.test(C),'평가 답에도 검토 의견 칸이 있음')}
  console.log('[5] 기존 장기목표와 ID·문구가 같은 AI 초안은 단기목표 낱말이 다른 영역처럼 보여도 그대로 씀(v3.23.1)');
  {const base=makeAI();const SH='1. 동료와 갈등이 있을 때 사과하는 대인관계 기술을 주 1회 연습함.\n2. 동료와 언쟁 0건을 유지함.';
   const ai=body=>{const o=base(body);if(Array.isArray(o.goals)&&/\[현재 승인·작성된 장기목표/.test(String(body.prompt))){const g=o.goals.find(x=>x.goalId==='g1');if(g){g.long='규칙적인 생활리듬과 자발적인 일상활동 참여능력을 향상시킴.';g.short=SH.split('\n');g.plan=['동료와 갈등이 생긴 날 당일 개별상담으로 상황을 함께 돌아봄.','주 1회 사과하는 말을 직원과 함께 연습함.','월 1회 언쟁 기록을 회원과 함께 확인함.']}}return o};
@@ -119,7 +121,7 @@ let _t0=null;const t0=()=>_t0||(_t0=boot(DIR,{stored:stored57()}));
   ok(/산책 프로그램에 꾸준히 참여함/.test(p)&&!/조용한 태도/.test(p),'다른 회원 문서와 같고 이 회원 상담일지에 없는 강점은 보내지 않음',p);}
  {const t=boot(DIR,{stored:stored57(),storage:ENGINE,ai:batchAI(makeAI())});t.ev("runLocalAI('plan-eval')");const d=await waitDlg(t);
   const txt=d?t.ev("document.querySelector('#cdPrompt').value"):'';
-  ok(d&&!/〔/.test(txt)&&/goals의 1번째 목표/.test(txt),'계획서+평가서 한 번에: 자리표시 없이 “앞 단계 N번째 목표”로 가리킴');
+  ok(d&&!/〔/.test(txt)&&/목표 1~N: step\d goals의 목표마다 하나씩, step\d와 같은 개수·같은 순서/.test(txt)&&!/goals 배열 \d+개/.test(txt),'계획서+평가서 한 번에: 자리표시 없이 “앞 단계 N번째 목표”로 가리킴');
   ok((txt.match(/\[관련 전문자료 — /g)||[]).length<=1,'전문자료는 한 단계에만',(txt.match(/\[관련 전문자료 — /g)||[]).length);
   ok((txt.match(/^평가기간: /gm)||[]).length===1,'평가기간 줄은 한 번만',(txt.match(/^평가기간: /gm)||[]).length);
   t.ev("document.querySelector('#claudeDlg')?.close?.()");}
@@ -131,5 +133,28 @@ let _t0=null;const t0=()=>_t0||(_t0=boot(DIR,{stored:stored57()}));
   ok(!/"longRevise"/.test(fmt.split('\n}')[0])&&/필요할 때만|맞지 않을 때만/.test(fmt),'고칠 때만 쓰는 칸은 틀에서 빼고 안내만');
   t.ev("document.querySelector('#claudeDlg')?.close?.()");}
  {const t=t0();const r=t.ev("JSON.stringify(claudeBatchCheck([{a:1},{goals:[{}]}],[{kind:'assess'},{kind:'goals'}]))");ok(/"step1":\{"a":1\}/.test(r)&&/"step2"/.test(r),'단계 묶음 없이 배열로 온 답도 받음',r);}
+ console.log('[16] v3.23.6 — 목표 개수 통일·틀 목표 구체화·코드 블록 지시 뺌·기록 없는 성과목표');
+ {const t=boot(DIR,{stored:stored57(),storage:ENGINE});t.ev("{const p=member().plan;p.goals.push({...p.goals[0],id:'g4',long:'건강한 생활습관 형성을 통한 신체 건강관리 능력 향상.',short:'1. 상담에서 확인된 건강 관련 생활습관을 스스로 조절함.',plan:'- 틀 문장',activity:'',target:'- 건강관리 활동 참여 횟수(협의 후 확정)'});persist()}");
+  const run=t.ev("runLocalAI('plan-eval')");const d=await waitDlg(t);const full=t.$('#cdPrompt').value;
+  ok(/기존 장기목표 4개를 모두 같은 goalId로 쓴다/.test(full),'목표 단계: 기존 장기목표 4개를 모두 씀',(/\[목표 개수\][^\n]{0,120}/.exec(full)||[''])[0]);
+  ok(/4\. goalId=g4 \/ 장기목표=[^\n]*\n   ↳ 4번 목표는 프로그램 틀 문장이거나 명사로 끝나 모호함/.test(full)&&!/↳ 1번 목표는/.test(full),'틀 문장 장기목표(4번)만 모호하다고 짚고 longRevise로 고치게 함');
+  ok(/goals 배열은 step2 goals와 같은 개수·같은 순서로 반환/.test(full)&&!/goals 배열 \d+개를 반환/.test(full)&&!/배열 순서는 상관없으나/.test(full),'평가 단계: 목표 개수를 숫자로 박지 않고 step2와 같게');
+  ok(!/코드 블록/.test(full)&&/JSON 객체 하나만 답하십시오/.test(full),'JSON 코드 블록 지시가 없음');
+  const ans=batchAI(makeAI())({prompt:full.split('\n[요청]\n')[1]});ok(ans.step2.goals.length===4&&ans.step3.goals.length===4,'가짜 답: 목표 4개·평가 4개',[ans.step2.goals.length,ans.step3.goals.length]);
+  t.$('#cdAnswer').value=JSON.stringify(ans);t.click('#cdOk');await run;
+  ok(t.ev('member().evaluation.goals.length')===4&&t.ev('member().plan.goals.length')===4,'계획서·평가서 모두 목표 4개',[t.ev('member().plan.goals.length'),t.ev('member().evaluation.goals.length')]);}
+ {const t=t0();const ex=t.ev('EVIDENCE_GOAL_EX');const all=JSON.stringify(ex);
+  ok(!/협의 후 확정|할 계획임/.test(all)&&Object.values(ex).every(g=>/[^ ]다\.$/.test(g.long)&&g.short.split('\n').every(l=>/\d+\s*(?:회|부|%)/.test(l))&&g.target.split('\n').every(l=>/\d/.test(l))),'틀 목표도 ‘~한다’ 장기목표·숫자 있는 단기목표·성과목표');
+  ok(t.ev("vagueLong('건강한 생활습관 형성을 통한 신체 건강관리 능력 향상.')")&&t.ev("vagueLong('정서 관리.')")&&!t.ev("vagueLong('규칙적인 생활리듬과 자발적인 일상활동 참여능력을 향상시킴.')"),'모호한 장기목표 알아보기');}
+ {const t=boot(DIR,{stored:stored57(),storage:ENGINE});const run=t.ev("runLocalAI('plan')");await waitDlg(t);const full=t.$('#cdPrompt').value;
+  const ans=batchAI(makeAI())({prompt:full.split('\n[요청]\n')[1]});t.$('#cdAnswer').value=JSON.stringify(ans);t.click('#cdOk');await run;
+  ok(!t.logs.some(l=>l[0]==='alert'&&/실패|오류/.test(l[1])),'코드 블록 없이 JSON만 붙여 넣어도 받음');}
+ {const t=boot(DIR,{stored:stored57(),storage:ENGINE});const run=t.ev("runLocalAI('plan')");await waitDlg(t);const full=t.$('#cdPrompt').value;
+  const ans=batchAI(makeAI())({prompt:full.split('\n[요청]\n')[1]});t.$('#cdAnswer').value='네, 작성했습니다.\n```json\n'+JSON.stringify(ans)+'\n```';t.click('#cdOk');await run;
+  ok(!t.logs.some(l=>l[0]==='alert'&&/실패|오류/.test(l[1])),'코드 블록으로 감싼 답도 그대로 받음');}
+ {const base=makeAI();const NOREC='평가기간 산책 수행 횟수 기록이 없어 평가가 어려움, 기록 확인 필요.';
+  const ai=body=>{const o=base(body);if(Array.isArray(o.goals)&&/\[실천모델 평가\]/.test(String(body.prompt))&&o.goals[0])o.goals[0].result=[NOREC,'점검표를 확인함. 성과목표 달성함.'];return o};
+  const t=boot(DIR,{stored:stored57(),ai});await t.ev("runLocalAI('eval')");const r=t.ev("member().evaluation.goals[0].result");
+  ok(/기록이 없어 평가가 어려움, 기록 확인 필요/.test(r)&&!/산책[^\n]*성과목표 (?:부분 )?달성함/.test(r),'횟수 기록 없는 성과목표는 ‘평가가 어려움·기록 확인 필요’ 그대로(달성으로 바꾸지 않음)',r);}
  done();
 })();
