@@ -1,7 +1,7 @@
 'use strict';
 // v2.1: 기록 관리는 서버 없이 동작. AI는 사용자가 동의한 경우에만 라이브러리·모델을 외부에서 내려받음.
 const KEY='sehuim_rehab_offline_v1';
-const APP_RELEASE='3.23.7-design-blue';
+const APP_RELEASE='3.23.8-design-blue';
 const $=(s,root=document)=>root.querySelector(s);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s??'').trim();
@@ -3509,6 +3509,9 @@ const AI_PROVIDERS={managed:{name:'Gemini AI',base:'/api',kind:'hosted',ctx:6000
 // v3.22.0: ‘Claude로 작성’ — 담당자의 Claude 구독(claude.ai)으로 쓴다. 프로그램이 상담일지 전문을 담은 요청문을 만들어 복사해 주고,
 // 담당자가 claude.ai에 붙여 넣어 받은 답(JSON)을 다시 붙여 넣으면 기존 Gemini와 같은 과정으로 칸에 채운다. API 키·요금이 필요 없다.
 let aiEngine=(()=>{try{return localStorage.getItem('rehab_ai_engine_v1')==='claude'?'claude':'gemini'}catch{return 'gemini'}})();
+// v3.23.8: Gemini도 Claude와 같은 요청문 1회로 작성(기본). 끄면 예전처럼 단계별로 여러 번 보낸다.
+let geminiOneShot=(()=>{try{return localStorage.getItem('rehab_gemini_oneshot_v1')!=='off'}catch{return true}})();
+function setGeminiOneShot(v){geminiOneShot=!!v;try{localStorage.setItem('rehab_gemini_oneshot_v1',v?'on':'off')}catch{}}
 function setAiEngine(v){aiEngine=v==='claude'?'claude':'gemini';try{localStorage.setItem('rehab_ai_engine_v1',aiEngine)}catch{}}
 const CLAUDE_CONN={id:'claude-manual',provider:'claude',model:'claude.ai',key:'',base:'',ctx:1000000};
 function normConn(c){return {id:'hosted',provider:'managed',model:'server-managed',key:'',base:'/api',ctx:60000}}
@@ -3517,7 +3520,8 @@ try{localStorage.removeItem('sehuim_rehab_ai_conn_v1')}catch{}
 let aiConns=[normConn({})];
 function saveConns(){}
 const connReady=c=>c.provider==='managed';
-const readyConns=()=>aiEngine==='claude'?[CLAUDE_CONN]:aiConns;
+// v3.23.8: Gemini도 Claude와 같은 한 번 요청문을 쓰므로, 요청문을 모으고(capture) 답을 나눠 넣는(replay) 동안은 같은 경로를 탄다.
+const readyConns=()=>(aiEngine==='claude'||claudeBatch)?[CLAUDE_CONN]:aiConns;
 const connLabel=c=>c?.provider==='claude'?'Claude(claude.ai)':'Gemini AI';
 const aiModelLists={};
 let institutionAuthOk=false;
@@ -3616,7 +3620,7 @@ function collectEvidence(m,stage,budget){
  const sel=noteSelection(m);let items=sel.used;const total=items.length;
  // v3.22.0: Claude(claude.ai)로 쓸 때는 입력 한도가 넉넉하므로 체크한 상담일지를 고르거나 자르지 않고 전문을 넣는다.
  // v3.23.4: Gemini도 체크한 상담일지 전문이 입력 한도 안에 들어가면 줄을 고르거나 자르지 않고 전문을 넣는다(넘칠 때만 줄임).
- {const text=items.map(({n,i})=>`[기록 ${i+1} / ${n.date||'날짜 미상'} / ${n.title||'주제 미상'}]\n${clean(n.body)}`).join('\n\n');if(aiEngine==='claude'||text.length<=budget)return{text,used:items.length,total,outside:sel.outside.length,dropped:0,trunc:0}}const MIN=140;let dropped=0;
+ {const text=items.map(({n,i})=>`[기록 ${i+1} / ${n.date||'날짜 미상'} / ${n.title||'주제 미상'}]\n${clean(n.body)}`).join('\n\n');if(aiEngine==='claude'||claudeBatch||text.length<=budget)return{text,used:items.length,total,outside:sel.outside.length,dropped:0,trunc:0}}const MIN=140;let dropped=0;
  const maxN=Math.max(1,Math.floor(budget/MIN));if(items.length>maxN){dropped=items.length-maxN;items=items.slice(-maxN)}
  const stageTerms={assessment:/망상|환청|우울|가족|부모|생활|호소|희망|자립|수면|건강|검사|진료|관계|상담|스트레스|병식|증상|활동|복약|약물|입원|상태/i,goals:/문제|어려움|증상|검사|진료|목표|계획|참여|활동|운동|퇴소|자립|안전|건강|무기력|수면|행동|관리|개입/i,evaluation:/실시|참여|수행|변화|증가|감소|유지|중단|재개|달성|평가|점수|점검|상담|진료|입원|처방|예정|계획|결과|성과|검사/i};
  const per=Math.floor(budget/Math.max(1,items.length));let trunc=0;
@@ -3640,7 +3644,7 @@ async function aiFetch(c,path,body,method='POST'){
  if(p.kind==='anthropic'){headers['x-api-key']=c.key;headers['anthropic-version']='2023-06-01';headers['anthropic-dangerous-direct-browser-access']='true'}
  else if(c.key)headers.authorization='Bearer '+c.key;
  const ctrl=new AbortController();const outer=aiAbort;const onAbort=()=>ctrl.abort();outer?.signal.addEventListener('abort',onAbort);
- const timer=setTimeout(()=>ctrl.abort(),180000);
+ const timer=setTimeout(()=>ctrl.abort(),300000); // v3.23.8: 한 번에 보내는 긴 요청(서버 최대 300초)
  let res;
  try{res=await fetch(c.base+path,{method,headers,body:method==='POST'?JSON.stringify(body):undefined,signal:ctrl.signal})}
  catch(e){if(aiCancel)throw Error(CANCEL_MSG);const err=Error(ctrl.signal.aborted?'응답 시간 초과':'접속 실패(인터넷 연결 또는 해당 AI의 브라우저 접속 허용 여부 확인)');err.status=0;throw err}
@@ -3654,7 +3658,7 @@ async function aiCallConn(c,system,prompt,maxTokens,{json=true}={}){
  const p=AI_PROVIDERS[c.provider];
  if(p.kind==='manual'){const kind=claudeStepKind(prompt);
   if(claudeBatch?.mode==='capture'){if(!claudeBatch.steps.some(x=>x.kind===kind)||kind!=='goals')claudeBatch.steps.push({kind,prompt,no:claudeBatch.steps.length+1});return{text:JSON.stringify(claudeStubAnswer(kind,prompt)),truncated:false}}
-  if(claudeBatch?.mode==='replay'){const a=claudeBatchTake(kind,prompt);if(a)return{text:JSON.stringify(a),truncated:false};if(claudeBatch.steps.some(x=>x.used&&x.kind===kind)){const err=Error('한 번에 받은 답으로 진행합니다(추가 요청 생략).');err.status=400;throw err}}
+  if(claudeBatch?.mode==='replay'){const a=claudeBatchTake(kind,prompt);if(a)return{text:JSON.stringify(a),truncated:false};if(claudeBatch.via==='gemini'){const err=Error('Gemini의 한 번 답에 이 단계가 없어 추가 요청을 하지 않았습니다.');err.status=400;throw err}if(claudeBatch.steps.some(x=>x.used&&x.kind===kind)){const err=Error('한 번에 받은 답으로 진행합니다(추가 요청 생략).');err.status=400;throw err}}
   return claudeManualExchange(system,prompt,{json});}
  if(p.kind==='hosted'){
   await ensureInstitutionSession();
@@ -3760,8 +3764,8 @@ function showClaudeReopen(on){claudeReopenOn=!!on;document.querySelectorAll('.cl
 document.addEventListener('click',ev=>{if(!ev.target.closest?.('.claude-reopen'))return;const d=document.getElementById('claudeDlg');if(d&&!d.open){showClaudeReopen(false);d.showModal()}});
 function aiEngineBoxHtml(busy){
  return `<div class="field" style="margin:12px 0"><b>작성 AI 선택</b><div class="toolbar" style="margin-top:6px"><label style="display:inline-flex;gap:6px;align-items:center"><input type="radio" name="aiEngine" value="claude" ${aiEngine==='claude'?'checked':''} ${busy?'disabled':''}> Claude로 작성(claude.ai 구독 · 복사·붙여넣기)</label><label style="display:inline-flex;gap:6px;align-items:center"><input type="radio" name="aiEngine" value="gemini" ${aiEngine==='gemini'?'checked':''} ${busy?'disabled':''}> Gemini 자동(무료 API)</label></div>
- <p class="muted">${aiEngine==='claude'?'Claude로 작성: 체크한 상담일지를 <b>자르지 않고 전문</b>으로 넣은 요청문을 만듭니다. 요청문을 claude.ai에 붙여 넣고, Claude 답을 다시 붙여 넣으면 양식 칸에 채워집니다. 계획서·평가서를 함께 써도 <b>한 번만</b> 주고받으면 나머지는 자동으로 진행됩니다. Claude Pro 구독으로 쓰므로 API 요금이 들지 않습니다.':'Gemini 자동: 기관 서버의 무료 Gemini API로 바로 작성합니다. 상담일지가 길면 일부 문장만 발췌될 수 있습니다.'}</p></div>`}
-document.addEventListener('change',ev=>{if(ev.target?.name!=='aiEngine'||aiWorking)return;setAiEngine(ev.target.value);paint()});
+ <p class="muted">${aiEngine==='claude'?'Claude로 작성: 체크한 상담일지를 <b>자르지 않고 전문</b>으로 넣은 요청문을 만듭니다. 요청문을 claude.ai에 붙여 넣고, Claude 답을 다시 붙여 넣으면 양식 칸에 채워집니다. 계획서·평가서를 함께 써도 <b>한 번만</b> 주고받으면 나머지는 자동으로 진행됩니다. Claude Pro 구독으로 쓰므로 API 요금이 들지 않습니다.':(geminiOneShot?'Gemini 자동: 기관 서버의 무료 Gemini API에 <b>Claude와 똑같은 요청문</b>(체크한 상담일지 전문, 계획서·평가서 한 번에)을 한 번 보내고, 받은 답으로 양식 칸을 채웁니다. 답이 길어 2~4분 걸릴 수 있습니다.':'Gemini 자동(단계별): 욕구·목표·평가를 따로따로 여러 번 보냅니다. 상담일지가 길면 일부 문장만 발췌될 수 있습니다.')}</p>${aiEngine==='claude'?'':`<label class="muted" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="geminiOneShot" ${geminiOneShot?'checked':''} ${busy?'disabled':''}> Claude와 같은 요청문 1회로 보내기(권장)</label>`}</div>`}
+document.addEventListener('change',ev=>{if(aiWorking)return;if(ev.target?.id==='geminiOneShot'){setGeminiOneShot(ev.target.checked);paint();return}if(ev.target?.name!=='aiEngine')return;setAiEngine(ev.target.value);paint()});
 function connErrorText(e){const s=e?.status;
  // 서버가 알려 준 원인(예: Gemini API 키 권한, 모델 접근 불가)이 있으면 그대로 보여 준다.
  const srvMsg=aiErrorMessage(e).replace(/^HTTP \d+\s*/,'').trim();
@@ -3793,7 +3797,7 @@ async function aiAsk(system,build,minOut=1500){
     let obj;try{obj=safeJson(res.text)}catch(e){
      if(res.truncated)throw Error('답변이 길이 제한에서 잘렸습니다');
      const fix=await aiCallConn(c,'입력된 내용만 유지해 유효한 JSON 객체 하나로 반환하십시오. 설명을 붙이지 마십시오.','[고칠 응답]\n'+String(res.text||'(빈 응답)').slice(0,6000),out);obj=safeJson(fix.text)}
-    aiUsedName=connLabel(c)+(AI_PROVIDERS[c.provider]?.kind==='hosted'&&aiServerModel?` (${aiServerModel})`:'');return{result:obj,ev:r.ev,conn:c};
+    aiUsedName=claudeBatch?.viaLabel||connLabel(c)+(AI_PROVIDERS[c.provider]?.kind==='hosted'&&aiServerModel?` (${aiServerModel})`:'');return{result:obj,ev:r.ev,conn:c};
    }catch(e){
     if(isCancel(e))throw Error(CANCEL_MSG);
     if(e.status===429&&e.limitKind==='daily'){const err=Error('Gemini 무료 일일 사용 한도에 도달했습니다. 태평양시간 다음 자정(한국시간 오후 4~5시) 이후 재이용하세요. 기존 문서는 보존되었습니다.');err.code='AI_QUOTA_DAILY';throw err;}
@@ -4372,7 +4376,7 @@ function mergeAssessment(draft,rev){
 async function aiCoverageAssessment(m,draft){
  if(!isObj(draft))return draft;
  // v3.22.0: Claude로 쓸 때는 첫 요청에 상담일지 전문과 문항별 뜻·마지막 점검이 이미 들어가므로, 복사·붙여넣기 횟수를 줄이려고 이 점검 요청을 건너뛴다.
- if(aiEngine==='claude')return draft;
+ if(aiEngine==='claude'||claudeBatch)return draft;
  try{const r=await aiAsk(AI_SYSTEM,(b,l=0)=>{const ev=collectEvidence(m,'assessment',b);return{ev,prompt:`[문항 점검 — 초안 고쳐 쓰기] 아래 [초안 JSON]은 이 회원의 상담 근거로 쓴 재활계획서 욕구·강점·약점·심리사회 평가 초안이다. 칸마다 [문항별 뜻]에 맞는지, 상담 근거에 직접 확인되는 내용인지 점검한다. 문항에 맞고 근거가 있는 칸은 그대로 둔다. 문항에 맞지 않거나(예: 회원 욕구 칸에 직원이 판단한 문제, 강점 칸에 어려움, 다른 영역의 심리사회 내용) 근거가 없는 내용은 그 문항이 묻는 것에 맞게 상담 근거로 다시 쓴다. 비어 있거나 ‘▪ 해당사항 없음.’인 칸은 그 문항에 맞는 근거가 있을 때만 채운다. managerItems는 개수를 늘리지 않고, 각 항목의 title·reason이 사례관리자 관점의 개입 영역과 근거에 맞게만 다듬으며 sources는 유지한다. 문체 규칙과 키 구조는 초안과 같게 하고, 초안과 같은 키를 모두 가진 JSON 객체 하나로만 답한다.\n${ASSESS_ITEM_GUIDE}\n[초안 JSON]\n${(l>=2?JSON.stringify(draft).slice(0,5000):JSON.stringify(draft))}\n[상담 근거]\n${ev.text}\n${ASSESS_FINAL_CHECK}`}},5000);
   return mergeAssessment(draft,r.result)}
  catch(e){if(isCancel(e)||/취소/.test(aiErrorMessage(e)))throw e;return draft}}
@@ -4485,22 +4489,31 @@ function claudeBatchPrompt(steps,evText){
  const keys=tidy.map((s,i)=>`"step${i+1}": ${slim(s.schema)||`{ step${i+1}에서 요구한 JSON 객체 }`}`).join(',\n  ');
  const optNote=tidy.some(s=>/"longRevise"/.test(s.schema))?'\n기존 장기목표가 지금 상황과 맞지 않을 때만 그 목표에 "longRevise"(고친 장기목표)와 "longReason"(이유)을 더한다. 내용이 없는 칸은 "" 또는 []로 둔다.':'\n내용이 없는 칸은 "" 또는 []로 둔다.';
  return {prompt:`이 요청은 정신재활시설 회원 1명의 문서를 ${steps.length}단계로 나누어 한 번에 작성합니다. step1부터 차례로, 앞 단계에서 쓴 내용을 이어받아 작성하십시오. 상담일지는 맨 아래 [상담일지 전문]에 한 번만 붙였습니다.\n\n${body}\n\n===== [상담일지 전문] =====\n${evText||'(각 단계에 포함)'}\n\n${tails?`===== [상담일지를 다 읽은 뒤 단계별 마지막 점검] =====\n${tails}\n\n`:''}[이번 답의 전체 형식]\n각 단계의 답을 아래 틀 그대로 하나의 JSON 객체로 묶으십시오. 배열에는 필요한 만큼 항목을 넣습니다.\n{\n  ${keys}\n}${optNote}`}}
+// v3.23.8: Gemini도 Claude와 똑같은 요청문 하나를 서버로 보내고, 받은 답을 같은 과정으로 칸에 넣는다.
+const GEMINI_BATCH_SYS='정신재활시설 재활계획서·재활평가서 작성 프로그램의 요청입니다. 요청문의 [작성 지침]과 [답변 형식]을 지키고, 요청문 맨 아래 [이번 답의 전체 형식]대로 JSON 객체 하나로만 답하십시오.';
+const GEMINI_BATCH_OUT=65536;
 async function runLocalAI(mode){
- if(aiEngine!=='claude'||claudeBatch)return runLocalAICore(mode);
+ if(claudeBatch)return runLocalAICore(mode);
+ const gem=aiEngine!=='claude'&&geminiOneShot?aiConns.find(c=>connReady(c)&&AI_PROVIDERS[c.provider]?.kind==='hosted'):null;
+ if(aiEngine!=='claude'&&!gem)return runLocalAICore(mode);
  const m=member();
  claudeBatch={mode:'capture',steps:[],evText:''};
  try{await runLocalAICore(mode)}catch{}
  const cap=claudeBatch;claudeBatch=null;
  if(cap.failed||!cap.steps.length)return; // 확인 단계에서 멈췄거나 이미 오류를 보여 줌
  if(!cap.done){return}
- try{cap.evText=maskPII(collectEvidence(m,'assessment',0).text,m.label)}catch{}
+ try{cap.evText=maskPII(collectEvidence(m,'assessment',1e9).text,m.label)}catch{}
  const {prompt}=claudeBatchPrompt(cap.steps,cap.evText);
- aiWorking=true;aiCancel=false;aiRunId++;aiAbort=new AbortController();document.body.classList.add('busy');state.view='ai';paint();setAIProgress(`Claude에 한 번에 보낼 요청문(${cap.steps.length}단계)을 만들었습니다. Claude 답을 붙여 넣어 주세요.`,10);
- let answer;
- try{const r=await claudeManualExchange(AI_SYSTEM,prompt,{json:true,batch:cap.steps});answer=safeJson(r.text)}
- catch(e){aiWorking=false;aiAbort=null;document.body.classList.remove('busy');setAIProgress(isCancel(e)?CANCEL_STATUS:'실행 실패: '+aiErrorMessage(e),0);paint();return}
+ aiWorking=true;aiCancel=false;aiRunId++;aiAbort=new AbortController();aiUsage={input:0,output:0,total:0,calls:0};document.body.classList.add('busy');state.view='ai';paint();
+ setAIProgress(gem?`Gemini에 Claude와 같은 요청문(${cap.steps.length}단계)을 한 번에 보내 답을 기다리는 중… (길면 2~4분 걸림)`:`Claude에 한 번에 보낼 요청문(${cap.steps.length}단계)을 만들었습니다. Claude 답을 붙여 넣어 주세요.`,10);
+ let answer,viaLabel='';
+ try{if(gem){const r=await aiCallConn(gem,GEMINI_BATCH_SYS,claudePromptText(AI_SYSTEM,prompt,{json:true}),GEMINI_BATCH_OUT);checkCancel();
+   let obj;try{obj=safeJson(r.text)}catch{throw Error(r.truncated?'Gemini 답이 길이 한도에서 잘렸습니다. 체크한 상담일지를 조금 줄여 다시 시도해 주세요.':'Gemini 답이 JSON 형식이 아닙니다. 다시 시도해 주세요.')}
+   const b=claudeBatchCheck(obj,cap.steps);if(typeof b==='string')throw Error('Gemini 답을 단계별로 나누지 못했습니다: '+b.replace(/Claude/g,'Gemini'));answer=b.root;viaLabel=connLabel(gem)+(aiServerModel?` (${aiServerModel})`:'')+' — Claude와 같은 요청문 1회';}
+  else{const r=await claudeManualExchange(AI_SYSTEM,prompt,{json:true,batch:cap.steps});answer=safeJson(r.text)}}
+ catch(e){aiWorking=false;aiAbort=null;document.body.classList.remove('busy');setAIProgress(isCancel(e)?CANCEL_STATUS:'실행 실패: '+aiErrorMessage(e)+' 기존 문서는 그대로입니다.',0);paint();if(gem&&!isCancel(e))alert('작성하지 못했습니다: '+aiErrorMessage(e)+'\n기존 문서는 그대로입니다.');return}
  aiWorking=false;aiAbort=null;document.body.classList.remove('busy');
- claudeBatch={mode:'replay',steps:cap.steps.map((s,i)=>({...s,answer:answer['step'+(i+1)],used:false}))};
+ claudeBatch={mode:'replay',via:gem?'gemini':'claude',viaLabel,steps:cap.steps.map((s,i)=>({...s,answer:answer['step'+(i+1)],used:false}))};
  try{await runLocalAICore(mode,{skipChecks:true})}finally{claudeBatch=null}}
 // 한 번에 받은 답에서 이번 단계의 답을 꺼낸다. 없으면 null(그 단계만 따로 묻는 창을 띄움).
 function claudeBatchTake(kind,prompt){const s=claudeBatch?.steps.find(x=>!x.used&&x.kind===kind&&isObj(x.answer));if(!s)return null;s.used=true;let a=JSON.parse(JSON.stringify(s.answer));
