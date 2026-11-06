@@ -1,7 +1,7 @@
 'use strict';
 // v2.1: 기록 관리는 서버 없이 동작. AI는 사용자가 동의한 경우에만 라이브러리·모델을 외부에서 내려받음.
 const KEY='sehuim_rehab_offline_v1';
-const APP_RELEASE='3.22.3-design-blue';
+const APP_RELEASE='3.22.4-design-blue';
 const $=(s,root=document)=>root.querySelector(s);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s??'').trim();
@@ -3609,7 +3609,10 @@ async function aiFetch(c,path,body,method='POST'){
 }
 async function aiCallConn(c,system,prompt,maxTokens,{json=true}={}){
  const p=AI_PROVIDERS[c.provider];
- if(p.kind==='manual')return claudeManualExchange(system,prompt,{json});
+ if(p.kind==='manual'){const kind=claudeStepKind(prompt);
+  if(claudeBatch?.mode==='capture'){if(!claudeBatch.steps.some(x=>x.kind===kind)||kind!=='goals')claudeBatch.steps.push({kind,prompt,no:claudeBatch.steps.length+1});return{text:JSON.stringify(claudeStubAnswer(kind,prompt)),truncated:false}}
+  if(claudeBatch?.mode==='replay'){const a=claudeBatchTake(kind,prompt);if(a)return{text:JSON.stringify(a),truncated:false};if(claudeBatch.steps.some(x=>x.used&&x.kind===kind)){const err=Error('한 번에 받은 답으로 진행합니다(추가 요청 생략).');err.status=400;throw err}}
+  return claudeManualExchange(system,prompt,{json});}
  if(p.kind==='hosted'){
   await ensureInstitutionSession();
   let data;
@@ -3653,7 +3656,7 @@ const CLAUDE_Q_MAX=6000;
 function claudeOpenUrl(text){const q=encodeURIComponent(text);return q.length<=CLAUDE_Q_MAX?CLAUDE_URL+'?q='+q:CLAUDE_URL}
 async function copyText(t){try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(t);return true}}catch{}
  try{const ta=document.createElement('textarea');ta.value=t;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();return ok}catch{return false}}
-function claudeManualExchange(system,prompt,{json=true}={}){
+function claudeManualExchange(system,prompt,{json=true,batch=null}={}){
  if(claudeStepRun!==aiRunId){claudeStepRun=aiRunId;claudeStepNo=0}
  const no=++claudeStepNo;const text=claudePromptText(system,prompt,{json});
  return new Promise((resolve,reject)=>{
@@ -3662,8 +3665,8 @@ function claudeManualExchange(system,prompt,{json=true}={}){
   d.style.width='min(860px,96vw)';d.style.maxHeight='94vh';d.style.overflow='auto';
   const extra=/빠진 목표 보완/.test(aiStatus)?' (추가 요청: 앞 답에서 빠진 목표 채우기)':'';
   // v3.22.3: 앞 답을 넣으면 다음 요청 창이 같은 모양으로 바로 떠서 ‘반응이 없다’고 느끼기 쉬우므로, 넣었다는 표시와 새 요청이라는 안내를 크게 보여 준다.
-  const doneNote=no>1?`<div role="status" style="background:#e7f6ec;border:1px solid #7cc493;color:#14532d;border-radius:8px;padding:10px 12px;margin:0 0 10px;font-weight:600">✓ ${no-1}번째 답을 프로그램에 넣었습니다. 이제 <u>새 요청문</u>을 Claude에 보내야 합니다.<br><span style="font-weight:400">아래 ‘Claude 채팅으로 보내기’를 다시 눌러 주세요. 앞서 쓰던 Claude 대화에 이어서 붙여 넣어도 됩니다.</span></div>`:'';
-  d.innerHTML=`${doneNote}<h3 style="margin-top:0">Claude로 작성 — ${no}번째 요청${extra}</h3>
+  const doneNote=no>1&&!batch?`<div role="status" style="background:#e7f6ec;border:1px solid #7cc493;color:#14532d;border-radius:8px;padding:10px 12px;margin:0 0 10px;font-weight:600">✓ ${no-1}번째 답을 프로그램에 넣었습니다. 이제 <u>새 요청문</u>을 Claude에 보내야 합니다.<br><span style="font-weight:400">아래 ‘Claude 채팅으로 보내기’를 다시 눌러 주세요. 앞서 쓰던 Claude 대화에 이어서 붙여 넣어도 됩니다.</span></div>`:'';
+  d.innerHTML=`${doneNote}<h3 style="margin-top:0">${batch?`Claude로 작성 — 한 번에 보내기(${batch.length}단계)`:`Claude로 작성 — ${no}번째 요청${extra}`}</h3>${batch?'<p style="margin:0 0 6px">요청문을 한 번 보내고 답을 한 번 붙여 넣으면 나머지는 자동으로 진행됩니다.</p>':''}
 <p class="muted" style="margin:0 0 6px">${escapeHtml(aiStatus)}</p>
 <ol style="margin:6px 0 10px;padding-left:20px;line-height:1.7"><li><b>Claude 채팅으로 보내기</b>를 누릅니다. 요청문(상담일지 전문 포함 ${text.length.toLocaleString()}자)이 복사되고 내 계정의 Claude 새 대화가 열립니다.</li><li>Claude 입력창에 붙여 넣고(Ctrl+V) 보냅니다.${claudeOpenUrl(text)!==CLAUDE_URL?' (짧은 요청은 입력창에 미리 채워져 있으니 보내기만 누르면 됩니다)':''}</li><li>Claude 답변 아래의 <b>복사</b> 버튼으로 답 전체를 복사해 아래 칸에 붙여 넣고 <b>결과 넣기</b>를 누릅니다.</li></ol>
 <div class="toolbar"><button type="button" class="btn primary" id="cdSend">Claude 채팅으로 보내기</button><button type="button" class="btn" id="cdCopy">요청문만 복사</button><button type="button" class="btn" id="cdOpen">claude.ai만 열기</button><span class="muted" id="cdCopyMsg"></span></div>
@@ -3688,18 +3691,34 @@ function claudeManualExchange(system,prompt,{json=true}={}){
   d.oncancel=e=>{e.preventDefault()};
   $('#cdOk',d).onclick=()=>{const ans=$('#cdAnswer',d).value.trim();const err=$('#cdErr',d);
    if(!ans){err.textContent='Claude 답변을 붙여 넣어 주세요.';return}
-   if(json){try{safeJson(ans)}catch{err.textContent='답변에서 JSON을 찾지 못했습니다. Claude 답변 전체({ 로 시작해 } 로 끝나는 부분)를 그대로 복사해 붙여 넣으세요. 답이 중간에 끊겼다면 Claude에게 “이어서 계속 써 줘”라고 한 뒤 전체를 합쳐 붙여 넣으세요.';return}}
-   fin(resolve,{text:ans,truncated:false})};
+   let obj=null;if(json){try{obj=safeJson(ans)}catch{err.textContent='답변에서 JSON을 찾지 못했습니다. Claude 답변 전체({ 로 시작해 } 로 끝나는 부분)를 그대로 복사해 붙여 넣으세요. 답이 중간에 끊겼다면 Claude에게 “이어서 계속 써 줘”라고 한 뒤 전체를 합쳐 붙여 넣으세요.';return}
+    if(batch){const b=claudeBatchCheck(obj,batch);if(typeof b==='string'){err.textContent=b;return}obj=b.root}else{const chk=claudeCheckAnswer(prompt,obj,no);if(chk.err){err.textContent=chk.err;return}obj=chk.obj}claudeLastAnswer={run:aiRunId,key:JSON.stringify(obj)}}
+   fin(resolve,{text:json?JSON.stringify(obj):ans,truncated:false})};
   showClaudeReopen(false);d.showModal();$('#cdSend',d).focus();
  })}
 let claudeReopenOn=false;
 const CLAUDE_REOPEN_HTML='<button type="button" class="btn primary small ai-keep claude-reopen" style="margin:8px 8px 0 0">Claude 창 다시 열기</button>';
+// v3.22.4: 붙여 넣은 답이 이 요청의 답인지 확인한다(앞 요청의 답을 다시 붙여 넣거나 Claude가 다른 틀로 감싼 경우).
+let claudeLastAnswer={run:-1,key:''};
+function claudeStepKind(prompt){const p=String(prompt||'');if(/\[문항 점검 — 초안 고쳐 쓰기\]/.test(p))return 'check';if(/\[실천모델 평가\]/.test(p))return 'eval';if(/\[보완 요청\]/.test(p)||/\[목표별 재활 계획 문장 기준\]/.test(p))return 'goals';if(/상담일지의 진술·관찰·의사 소견을 종합하여/.test(p))return 'assess';return ''}
+function findKeyDeep(o,key,depth=0){if(!isObj(o)||depth>3)return null;if(key in o)return o;for(const v of Object.values(o)){const r=findKeyDeep(v,key,depth+1);if(r)return r}return null}
+function claudeCheckAnswer(prompt,obj,no){const kind=claudeStepKind(prompt);
+ if(claudeLastAnswer.run===aiRunId&&claudeLastAnswer.key===JSON.stringify(obj))return{err:`앞 요청에 넣은 답과 똑같습니다. ${no}번째 요청문을 Claude에 새로 보내고, 그 답을 붙여 넣어 주세요.`};
+ const need=kind==='goals'||kind==='eval'?'goals':kind==='assess'?'strength':'';
+ if(!need)return{obj};
+ // Claude가 {"재활계획서":{...}}처럼 한 겹 더 감싸 답한 경우 안쪽 객체를 쓴다.
+ const inner=(need in obj)?obj:findKeyDeep(obj,need);
+ if(!inner||(need==='goals'&&!(Array.isArray(inner.goals)&&inner.goals.length))){
+  const what=kind==='goals'?'재활목표(goals)':kind==='eval'?'목표별 평가(goals)':'욕구·강점·약점(strength 등)';
+  const looks=isObj(obj)&&('strength' in obj||'memberNeed' in obj)&&kind!=='assess'?' 1번째 요청의 답을 다시 붙여 넣은 것 같습니다.':'';
+  return{err:`이 답에는 이번 요청이 묻는 ${what}이 없습니다.${looks} ${no}번째 요청문을 Claude에 보내고 받은 답을 붙여 넣어 주세요.`}}
+ return{obj:inner}}
 function showClaudeReopen(on){claudeReopenOn=!!on;document.querySelectorAll('.claude-reopen').forEach(x=>x.remove());if(!on)return;
  const box=$('#aiProgress');if(box)box.insertAdjacentHTML('beforeend',CLAUDE_REOPEN_HTML)}
 document.addEventListener('click',ev=>{if(!ev.target.closest?.('.claude-reopen'))return;const d=document.getElementById('claudeDlg');if(d&&!d.open){showClaudeReopen(false);d.showModal()}});
 function aiEngineBoxHtml(busy){
  return `<div class="field" style="margin:12px 0"><b>작성 AI 선택</b><div class="toolbar" style="margin-top:6px"><label style="display:inline-flex;gap:6px;align-items:center"><input type="radio" name="aiEngine" value="claude" ${aiEngine==='claude'?'checked':''} ${busy?'disabled':''}> Claude로 작성(claude.ai 구독 · 복사·붙여넣기)</label><label style="display:inline-flex;gap:6px;align-items:center"><input type="radio" name="aiEngine" value="gemini" ${aiEngine==='gemini'?'checked':''} ${busy?'disabled':''}> Gemini 자동(무료 API)</label></div>
- <p class="muted">${aiEngine==='claude'?'Claude로 작성: 체크한 상담일지를 <b>자르지 않고 전문</b>으로 넣은 요청문을 만듭니다. 요청문을 claude.ai에 붙여 넣고, Claude 답을 다시 붙여 넣으면 양식 칸에 채워집니다. 계획서·평가서를 함께 쓰면 보통 3번 주고받습니다. Claude Pro 구독으로 쓰므로 API 요금이 들지 않습니다.':'Gemini 자동: 기관 서버의 무료 Gemini API로 바로 작성합니다. 상담일지가 길면 일부 문장만 발췌될 수 있습니다.'}</p></div>`}
+ <p class="muted">${aiEngine==='claude'?'Claude로 작성: 체크한 상담일지를 <b>자르지 않고 전문</b>으로 넣은 요청문을 만듭니다. 요청문을 claude.ai에 붙여 넣고, Claude 답을 다시 붙여 넣으면 양식 칸에 채워집니다. 계획서·평가서를 함께 써도 <b>한 번만</b> 주고받으면 나머지는 자동으로 진행됩니다. Claude Pro 구독으로 쓰므로 API 요금이 들지 않습니다.':'Gemini 자동: 기관 서버의 무료 Gemini API로 바로 작성합니다. 상담일지가 길면 일부 문장만 발췌될 수 있습니다.'}</p></div>`}
 document.addEventListener('change',ev=>{if(ev.target?.name!=='aiEngine'||aiWorking)return;setAiEngine(ev.target.value);paint()});
 function connErrorText(e){const s=e?.status;
  // 서버가 알려 준 원인(예: Gemini API 키 권한, 모델 접근 불가)이 있으면 그대로 보여 준다.
@@ -4319,11 +4338,57 @@ function cancellable(p){if(aiCancel)return Promise.reject(Error(CANCEL_MSG));let
 function fireCancel(){aiCancel=true;try{aiAbort?.abort()}catch{};const ws=aiCancelWaiters;aiCancelWaiters=[];for(const f of ws)try{f()}catch{}}
 const isCancel=e=>aiCancel||aiErrorMessage(e)===CANCEL_MSG;
 const CANCEL_STATUS='중단했습니다. 기존 내용은 변경되지 않았습니다.';
+// v3.22.4: Claude로 작성 — 한 번만 주고받기. 먼저 가짜 답으로 단계별 요청문을 모두 모은 뒤(실제 문서는 바꾸지 않음),
+// 하나로 합친 요청문을 claude.ai에 한 번 보내고, 받은 답을 단계별로 나누어 기존 과정을 자동으로 이어 간다.
+let claudeBatch=null;
+const CLAUDE_BATCH_ERR='CLAUDE_CAPTURED';
+function claudeStubAnswer(kind,prompt){
+ if(kind==='assess')return{memberDialogue:'',familyDialogue:'',memberNeed:'- 〔1번 답의 memberNeed〕',familyNeed:'- 〔1번 답의 familyNeed〕',managerItems:[{title:'〔1번 답의 개입 영역〕',reason:'〔1번 답의 근거〕',src:[1]}],psycho:{},strength:['〔1번 답 강점〕','',''],weakness:['〔1번 답 약점〕','',''],opinion:'- 〔1번 답 의견〕'};
+ if(kind==='goals'){const sec=String(prompt).split('[현재 승인·작성된 장기목표 — 변경하지 말고 단기목표를 연결]')[1]||'';const keep=sec.split('\n').slice(1).map(l=>/^\d+\. goalId=(\S+) \/ 장기목표=(.*)$/.exec(l)).filter(Boolean);
+  const goals=[];for(let i=0;i<REHAB_GOAL_SLOTS;i++){const k=keep[i];goals.push({goalId:k?k[1]:'',long:k?k[2]:`〔목표 ${i+1} 장기목표〕`,short:[`〔목표 ${i+1} 단기목표〕`],plan:[`〔목표 ${i+1} 재활계획〕`],activity:[`〔목표 ${i+1} 세부활동〕`],target:[`〔목표 ${i+1} 성과목표〕`],src:[1]})}
+  return{goals,services:[{type:'사회심리재활',service:'■ 〔서비스〕',resource:'■ 〔자원〕'}]}}
+ if(kind==='eval'){const ids=[...String(prompt).matchAll(/목표 \d+: goalId=(\S+) \/ 단기목표 원문/g)].map(x=>x[1]);
+  return{participation:[{type:'사회심리재활',service:'∎ 〔참여 서비스〕',resource:'∎ 〔자원〕'}],goals:ids.map(id=>({goalId:id,activity:['〔실시 내용〕'],result:['〔결과〕'],analysis:'- 〔분석〕',achMember:'해당사항 없음',achStaff:'해당사항 없음',blockMember:'해당사항 없음',blockStaff:'해당사항 없음'})),overall:'- 〔종합〕',opinion:'- 〔의견〕'}}
+ return{}}
+function claudeBatchPrompt(steps,evText){
+ const nameOf={assess:'욕구·강점·약점·심리사회 평가',goals:'재활목표·단기목표·재활계획·성과목표',eval:'재활평가'};
+ const body=steps.map((s,i)=>{let p=s.prompt;if(evText)p=p.split(evText).join('(맨 아래 [상담일지 전문]을 그대로 근거로 씀)');
+  if(s.kind==='eval'&&steps.some(x=>x.kind==='goals'&&x.no<s.no))p='※ 아래 [평가 대상 목표]의 단기목표·성과목표 문구는 자리표시(〔…〕)입니다. 이 답의 앞 단계(step'+(steps.findIndex(x=>x.kind==='goals')+1)+')에서 직접 쓴 goals를 같은 순서로 평가하십시오. goals 배열의 순서와 개수를 그 단계의 goals와 맞추십시오.\n'+p;
+  if(s.kind==='goals'&&steps.some(x=>x.kind==='assess'&&x.no<s.no))p='※ 앞 단계(step'+(steps.findIndex(x=>x.kind==='assess')+1)+')에서 직접 분석한 욕구·강점·약점과 이어지게 작성하십시오. 아래 〔…〕 표시는 자리표시입니다.\n'+p;
+  return `===== [step${i+1}] ${nameOf[s.kind]||'요청'} =====\n${p}`}).join('\n\n');
+ const keys=steps.map((s,i)=>`"step${i+1}": { step${i+1}이 요구한 JSON 객체 }`).join(',\n  ');
+ return {prompt:`이 요청은 정신재활시설 회원 1명의 문서를 ${steps.length}단계로 나누어 한 번에 작성합니다. step1부터 차례로, 앞 단계에서 쓴 내용을 이어받아 작성하십시오. 상담일지는 맨 아래 [상담일지 전문]에 한 번만 붙였습니다.\n\n${body}\n\n===== [상담일지 전문] =====\n${evText||'(각 단계에 포함)'}\n\n[이번 답의 전체 형식]\n각 단계의 답을 아래처럼 하나의 JSON 객체로 묶으십시오. 단계별 키 이름과 구조는 각 단계에 적힌 그대로 쓰십시오.\n{\n  ${keys}\n}`}}
 async function runLocalAI(mode){
+ if(aiEngine!=='claude'||claudeBatch)return runLocalAICore(mode);
+ const m=member();
+ claudeBatch={mode:'capture',steps:[],evText:''};
+ try{await runLocalAICore(mode)}catch{}
+ const cap=claudeBatch;claudeBatch=null;
+ if(cap.failed||!cap.steps.length)return; // 확인 단계에서 멈췄거나 이미 오류를 보여 줌
+ if(!cap.done){return}
+ try{cap.evText=collectEvidence(m,'assessment',0).text}catch{}
+ const {prompt}=claudeBatchPrompt(cap.steps,cap.evText);
+ aiWorking=true;aiCancel=false;aiRunId++;aiAbort=new AbortController();document.body.classList.add('busy');state.view='ai';paint();setAIProgress(`Claude에 한 번에 보낼 요청문(${cap.steps.length}단계)을 만들었습니다. Claude 답을 붙여 넣어 주세요.`,10);
+ let answer;
+ try{const r=await claudeManualExchange(AI_SYSTEM,prompt,{json:true,batch:cap.steps});answer=safeJson(r.text)}
+ catch(e){aiWorking=false;aiAbort=null;document.body.classList.remove('busy');setAIProgress(isCancel(e)?CANCEL_STATUS:'실행 실패: '+aiErrorMessage(e),0);paint();return}
+ aiWorking=false;aiAbort=null;document.body.classList.remove('busy');
+ claudeBatch={mode:'replay',steps:cap.steps.map((s,i)=>({...s,answer:answer['step'+(i+1)],used:false}))};
+ try{await runLocalAICore(mode,{skipChecks:true})}finally{claudeBatch=null}}
+// 한 번에 받은 답에서 이번 단계의 답을 꺼낸다. 없으면 null(그 단계만 따로 묻는 창을 띄움).
+function claudeBatchTake(kind,prompt){const s=claudeBatch?.steps.find(x=>!x.used&&x.kind===kind&&isObj(x.answer));if(!s)return null;s.used=true;let a=JSON.parse(JSON.stringify(s.answer));
+ if(kind==='eval'&&Array.isArray(a.goals)){const ids=[...String(prompt).matchAll(/목표 \d+: goalId=(\S+) \/ 단기목표 원문/g)].map(x=>x[1]);a.goals=a.goals.filter(isObj).slice(0,ids.length).map((g,i)=>({...g,goalId:ids[i]}))}
+ return a}
+function claudeBatchCheck(obj,steps){if(!isObj(obj))return '답이 JSON 객체가 아닙니다.';
+ const root=('step1' in obj)?obj:findKeyDeep(obj,'step1');if(!root)return '답에 step1, step2 … 묶음이 없습니다. Claude 답 전체를 그대로 붙여 넣어 주세요. 한 단계씩만 왔다면 Claude에게 “[이번 답의 전체 형식]대로 다시 써 줘”라고 요청하세요.';
+ for(let i=0;i<steps.length;i++){const a=root['step'+(i+1)];if(!isObj(a))return `step${i+1}의 답이 빠졌습니다. 답이 중간에 끊겼다면 Claude에게 “이어서 계속 써 줘”라고 한 뒤 두 답을 이어 붙여 넣으세요.`;
+  if((steps[i].kind==='goals'||steps[i].kind==='eval')&&!(Array.isArray(a.goals)&&a.goals.length))return `step${i+1}에 goals(목표)가 없습니다. Claude에게 step${i+1}을 다시 써 달라고 요청해 주세요.`}
+ return {root}}
+async function runLocalAICore(mode,{skipChecks=false}={}){
  if(aiWorking||aiPreparing)return;const m=member();const currID=m.id;const working=JSON.parse(JSON.stringify(m));
- {const ks=new Set(noteSelection(m).used.map(x=>x?.n?.personKey).filter(Boolean));if(ks.size>1&&!confirm('체크한 상담일지에 대상자가 다른 기록이 섞여 있습니다.\n그대로 작성하면 여러 사람의 내용이 한 문서에 들어갑니다.\n그래도 작성할까요?'))return}
+ {const ks=new Set(noteSelection(m).used.map(x=>x?.n?.personKey).filter(Boolean));if(!skipChecks&&ks.size>1&&!confirm('체크한 상담일지에 대상자가 다른 기록이 섞여 있습니다.\n그대로 작성하면 여러 사람의 내용이 한 문서에 들어갑니다.\n그래도 작성할까요?'))return}
  // v3.21.58: 다른 회원의 상담일지와 똑같은 기록이 있거나, 지금 문서에 다른 회원의 문장이 들어 있으면 먼저 알린다.
- {const dup=duplicateNotesWithOthers(m);if(dup.length&&!confirm(`체크한 상담일지 가운데 ${dup.length}건이 다른 회원(${[...new Set(dup.map(d=>d.label))].slice(0,3).join(', ')})의 상담일지와 내용이 똑같습니다.\n집단 프로그램처럼 같은 기록을 여러 회원에게 쓴 경우라면 계속하세요.\n그래도 작성할까요?`))return}
+ {const dup=duplicateNotesWithOthers(m);if(!skipChecks&&dup.length&&!confirm(`체크한 상담일지 가운데 ${dup.length}건이 다른 회원(${[...new Set(dup.map(d=>d.label))].slice(0,3).join(', ')})의 상담일지와 내용이 똑같습니다.\n집단 프로그램처럼 같은 기록을 여러 회원에게 쓴 경우라면 계속하세요.\n그래도 작성할까요?`))return}
  {const who=foreignMemberLabel(m,{plan:m.plan,evaluation:m.evaluation});if(who){alert(`지금 재활계획서·재활평가서에 다른 회원(${who})의 상담일지와 같은 문장이 들어 있습니다.\n문서 내용을 확인해 고친 뒤 다시 작성해 주세요.`);return}}
  if(!noteSelection(m).used.length){alert('상담일지 목록에서 문서작성에 사용할 기록을 체크해 주세요. 선택한 기록이 평가기간에 포함되고 내용이 입력되었는지도 확인하세요.');return}
  if((mode==='eval'||mode==='both')&&!hasEvaluablePlan(m)){alert('평가하려면 기존 재활계획서에 장기·단기목표가 필요합니다. 기존 계획이 없으면 ‘AI 자동작성 시작’으로 계획서와 평가서를 함께 작성하거나 계획서만 먼저 작성하세요.');return}
@@ -4430,6 +4495,7 @@ async function runLocalAI(mode){
   // 모든 AI 단계가 끝난 뒤에만 원본에 반영한다. 평가서 실패·중단 시 계획서까지 원본 유지.
   checkCancel();
   // v3.21.58: 작성하는 동안 회원·상담일지·목표가 바뀌지 않았는지, 결과에 다른 회원의 문장이 없는지 확인한 뒤 한 번에 넣는다.
+  if(claudeBatch?.mode==='capture'){claudeBatch.done=true;const err=Error('captured');err.code=CLAUDE_BATCH_ERR;throw err}
   assertMemberAiSource(m,sourceFingerprint);assertNoForeignMemberText(m,working);
   const live=state.members.find(x=>x.id===currID);
   if(!live||live!==m)throw Error('회원 상태가 변경되어 문서를 적용하지 않았습니다.');
@@ -4443,6 +4509,8 @@ async function runLocalAI(mode){
  }catch(e){
   // 복구 실패 후 해제된 엔진을 재사용하지 않는다. 기존 상담·문서 데이터는 건드리지 않는다.
   aiAbort=null;
+  if(e?.code===CLAUDE_BATCH_ERR){aiWorking=false;document.body.classList.remove('busy');return}
+  if(claudeBatch?.mode==='capture')claudeBatch.failed=true;
   if(isCancel(e)){aiWorking=false;document.body.classList.remove('busy');setAIProgress(CANCEL_STATUS,0);paint();return}
   aiWorking=false;document.body.classList.remove('busy');
   const detail=aiErrorMessage(e),guide=aiErrorGuidance(e);
