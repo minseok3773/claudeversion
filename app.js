@@ -1,7 +1,7 @@
 'use strict';
 // v2.1: 기록 관리는 서버 없이 동작. AI는 사용자가 동의한 경우에만 라이브러리·모델을 외부에서 내려받음.
 const KEY='sehuim_rehab_offline_v1';
-const APP_RELEASE='3.22.4-design-blue';
+const APP_RELEASE='3.22.5-design-blue';
 const $=(s,root=document)=>root.querySelector(s);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s??'').trim();
@@ -4377,7 +4377,10 @@ async function runLocalAI(mode){
  try{await runLocalAICore(mode,{skipChecks:true})}finally{claudeBatch=null}}
 // 한 번에 받은 답에서 이번 단계의 답을 꺼낸다. 없으면 null(그 단계만 따로 묻는 창을 띄움).
 function claudeBatchTake(kind,prompt){const s=claudeBatch?.steps.find(x=>!x.used&&x.kind===kind&&isObj(x.answer));if(!s)return null;s.used=true;let a=JSON.parse(JSON.stringify(s.answer));
- if(kind==='eval'&&Array.isArray(a.goals)){const ids=[...String(prompt).matchAll(/목표 \d+: goalId=(\S+) \/ 단기목표 원문/g)].map(x=>x[1]);a.goals=a.goals.filter(isObj).slice(0,ids.length).map((g,i)=>({...g,goalId:ids[i]}))}
+ if(kind==='eval'&&Array.isArray(a.goals)){const ids=[...String(prompt).matchAll(/목표 \d+: goalId=(\S+) \/ 단기목표 원문/g)].map(x=>x[1]);// v3.22.5: 한 번에 받은 답의 평가는 Claude가 앞 단계에서 쓴 단기목표 문구를 옮겨 적기 쉬운데, 프로그램이 다듬은 문구와 달라 ‘목표 ID와 단기목표 문구가 다름’ 오류가 났다.
+  // 목표는 순서로 연결하므로 문구(short)는 버리고, 모자란 목표는 빈 평가로 채워 개수를 맞춘다.
+  a.goals=a.goals.filter(isObj).slice(0,ids.length).map((g,i)=>{const o={...g,goalId:ids[i]};delete o.short;delete o.goal;delete o.long;return o});
+  for(let i=a.goals.length;i<ids.length;i++)a.goals.push({goalId:ids[i]})}
  return a}
 function claudeBatchCheck(obj,steps){if(!isObj(obj))return '답이 JSON 객체가 아닙니다.';
  const root=('step1' in obj)?obj:findKeyDeep(obj,'step1');if(!root)return '답에 step1, step2 … 묶음이 없습니다. Claude 답 전체를 그대로 붙여 넣어 주세요. 한 단계씩만 왔다면 Claude에게 “[이번 답의 전체 형식]대로 다시 써 줘”라고 요청하세요.';

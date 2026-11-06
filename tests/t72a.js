@@ -32,6 +32,11 @@ async function answerAll(t,ai,{wrap=true,max=8}={}){const seen=[];for(let k=0;k<
  for(const mode of ['eval','both','plan']){const t=boot(DIR,{stored:stored57(),storage:ENGINE});const run=t.ev(`runLocalAI('${mode}')`);const seen=await answerAll(t,batchAI(makeAI()),{max:3});await run;
   const fail=t.logs.find(l=>l[0]==='alert'&&/실패|오류/.test(l[1]));const e=t.ev('member().evaluation'),p=t.ev('member().plan');
   ok(seen.length===1&&!fail&&!/〔/.test(JSON.stringify([e,p]))&&(mode==='plan'||e.goals.filter(g=>g.goalId).map(g=>g.goalId).join()==='g1,g2,g3'),mode+': 한 번 주고받아 완성, 평가는 기존 목표와 연결',[seen.length,fail,t.ev('aiStatus')]);}
+ console.log('[1d] 평가 답에 Claude가 쓴 단기목표 문구가 들어 있거나 목표가 모자라도 적용(v3.22.5)');
+ {const t=boot(DIR,{stored:stored57(),storage:ENGINE});const run=t.ev("runLocalAI('plan-eval')");
+  const shortAI=body=>{const o=batchAI(makeAI())(body);for(const g of o.step3.goals)g.short='1. Claude가 앞에서 쓴 다른 단기목표 문구임.';o.step3.goals.pop();return o};
+  const seen=await answerAll(t,shortAI,{max:2});await run;const fail=t.logs.find(l=>l[0]==='alert'&&/실패|오류/.test(l[1]));
+  ok(seen.length===1&&!fail&&/완료/.test(t.ev('aiStatus'))&&t.ev('member().evaluation.goals').filter(g=>g.goalId).length>=3,'문구가 달라도 순서로 연결해 평가서 완성',[fail,t.ev('aiStatus')]);}
  console.log('[1b] 한 번에 받은 답이 일부 빠지면 알려 줌');
  {const t=boot(DIR,{stored:stored57(),storage:ENGINE});const run=t.ev("runLocalAI('plan-eval')");const d=await waitDlg(t);
   const full=t.$('#cdPrompt').value;const ans=batchAI(makeAI())({prompt:full.split('\n[요청]\n')[1]});delete ans.step3;t.$('#cdAnswer').value=JSON.stringify(ans);t.click('#cdOk');
