@@ -11,7 +11,7 @@ const REL='타인과 원만한 관계를 형성하고 유지함.';
   const B=t.prompts.find(b=>stepOf(b.prompt)==='B');const sec=(B?.prompt||'').split('[현재 승인·작성된 장기목표 — 변경하지 말고 단기목표를 연결]')[1].split('[이전 평가')[0];
   ok(/goalId=g1 \/ 장기목표=규칙적인/.test(sec)&&new RegExp('goalId=\\S+ / 장기목표='+REL).test(sec)&&!/goalId=g2|goalId=g3/.test(sec),'AI에 고른 장기목표만 넘김',sec);
   const p=t.ev('member().plan');const longs=F(p.goals).map(g=>g.long);
-  ok(longs.length>2&&longs.length<=4&&/생활리듬/.test(longs[0])&&longs[1]===REL&&F(p.goals).slice(2).every(g=>/^상담일지 \d/.test(g.src)),'새 계획서 장기목표 = 고른 2개 + 남은 칸은 상담일지 근거 영역(v3.21.62)',longs);
+  ok(longs.length>2&&longs.length<=4&&/생활리듬/.test(longs[0])&&longs[1]===t.ev('futureText('+JSON.stringify(REL)+')')&&F(p.goals).slice(2).every(g=>/^상담일지 \d/.test(g.src)),'새 계획서 장기목표 = 고른 2개 + 남은 칸은 상담일지 근거 영역(v3.21.62)',longs);
   ok(p.goals[0].id==='g1'&&p.goals[1].id!=='g2','이어 쓴 목표 ID 유지',p.goals.map(g=>g.id));
   ok(/사회기술훈련/.test(p.goals[1].short)&&/^1\./.test(p.goals[1].short),'새 장기목표에 AI가 쓴 단기목표 연결',p.goals[1].short);
   ok(p.goals.slice(0,2).every(g=>clean(g.longSince)),'고른 장기목표 고정 날짜',p.goals.map(g=>g.longSince));

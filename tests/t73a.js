@@ -42,7 +42,7 @@ let _t0=null;const t0=()=>_t0||(_t0=boot(DIR,{stored:stored57()}));
   const ai=body=>{const o=base(body);if(Array.isArray(o.goals)&&/\[현재 승인·작성된 장기목표/.test(String(body.prompt))){const g=o.goals.find(x=>x.goalId==='g1');if(g){g.long='규칙적인 생활리듬과 자발적인 일상활동 참여능력을 향상시킴.';g.short=SH.split('\n');g.plan=['동료와 갈등이 생긴 날 당일 개별상담으로 상황을 함께 돌아봄.','주 1회 사과하는 말을 직원과 함께 연습함.','월 1회 언쟁 기록을 회원과 함께 확인함.']}}return o};
   const t=boot(DIR,{stored:stored57(),ai});await t.ev("runLocalAI('plan')");const g=t.ev("member().plan.goals.find(x=>x.id==='g1')");
   ok(/동료와 언쟁 0건/.test(g.short)&&/당일 개별상담/.test(g.plan),'AI가 쓴 단기목표·재활계획이 들어감',[g.short,g.plan]);
-  ok(g.long==='규칙적인 생활리듬과 자발적인 일상활동 참여능력을 향상시킴.','장기목표 문구는 그대로',g.long);}
+  ok(g.long==='규칙적인 생활리듬과 자발적인 일상활동 참여능력을 향상시킨다.','장기목표 문구는 그대로(끝맺음만 ~한다)',g.long);}
  console.log('[6] 기존 장기목표의 오타만 고친 문구는 받아들이고, 다른 문구는 받아들이지 않음');
  ok(t0().ev("typoFixedLong('현재 생홒 방식을 유지함.','현재 생활 방식을 유지함.')")==='현재 생활 방식을 유지함.','오타 수정은 반영');
  ok(t0().ev("typoFixedLong('현재 생홒 방식을 유지함.','직업 능력을 크게 향상시킴.')")==='현재 생홒 방식을 유지함.','다른 문구는 반영하지 않음');
@@ -64,5 +64,13 @@ let _t0=null;const t0=()=>_t0||(_t0=boot(DIR,{stored:stored57()}));
   ok(/재미있어요/.test(g2),'말만 있는 줄은 예전처럼 옮김',g2);
   const sv=t.ev("mergeSameHead('∎ 사회적응훈련(대형마트 이용, 대형문고 이용, 전시회 관람 등)\\n∎ 개별상담\\n∎ 사회적응훈련(대형마트 이용, 지역행사 참여, 산책)\\n∎ 생활지도(계절 복장, 식사습관)\\n∎ 생활지도(식사습관, 계절 복장)\\n∎ 개별상담')");
   ok((sv.match(/사회적응훈련/g)||[]).length===1&&/지역행사 참여/.test(sv)&&(sv.match(/생활지도/g)||[]).length===1&&(sv.match(/개별상담/g)||[]).length===1,'같은 이름의 서비스 줄을 하나로 합침',sv);}
+ console.log('[10] v3.23.3 — 계획서 목표·계획 칸은 ‘~한다’, 욕구·강점·평가는 ‘~함’ 그대로');
+ {const t=boot(DIR,{stored:stored57(),ai:makeAI()});await t.ev("runLocalAI('plan-eval')");const p=t.ev("member().plan"),e=t.ev("member().evaluation");
+  const g=p.goals.find(x=>x.id==='g1');
+  ok(/한다/.test(g.short)&&!/(?:참여함|표시함)\.?(?:\n|$)/.test(g.short),'단기목표가 ‘~한다’로 끝남',g.short);
+  ok(/(?:한다|이다|된다)\.?(?:\(|\n|$)/m.test(g.plan)&&!/계획임/.test(g.plan),'재활계획이 ‘~한다’로 끝남',g.plan);
+  ok(/함\.?$|임\.?$/.test(p.strength.filter(Boolean)[0]||'함'),'강점은 ‘~함/~임’ 그대로',p.strength);
+  ok(/달성함|달성하지 못함/.test(e.goals.map(x=>x.result).join('\n')),'평가 결과는 ‘~함’ 그대로');
+  ok(t.ev("futureText('- 회원을 도울 계획임.\\n1. 복장을 갖춰 입음.\\n2. 상담이 필요함.')")==='- 회원을 돕는다.\n1. 복장을 갖춰 입는다.\n2. 상담이 필요하다.','어미 바꾸기(불규칙·형용사 포함)');}
  done();
 })();

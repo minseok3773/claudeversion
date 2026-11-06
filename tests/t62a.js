@@ -2,6 +2,7 @@
 const {boot,ok,done}=require('./h.js');const {stored57}=require('./fix57.js');const {makeAI,stepOf}=require('./fakeai.js');
 const DIR=process.argv[2]||require('path').resolve(__dirname,'..');const D=require(DIR+'/doctor-letter.js');
 const isDoc=b=>/\[주치의편지\]/.test(b.prompt||'');
+const FT=(t,x)=>t.ev('futureText('+JSON.stringify(x)+')');
 const G1='규칙적인 생활리듬과 자발적인 일상활동 참여능력을 향상시킴.',G2='정신과적 증상에 대한 대처능력을 향상시키고 안정적인 일상생활을 유지함.';
 (async()=>{
  console.log('[1] 주치의편지: 불안·기분 변화 줄');
@@ -33,7 +34,7 @@ const G1='규칙적인 생활리듬과 자발적인 일상활동 참여능력을
   ok(/남은 칸\(강점 2칸 · 약점 1칸\)은 체크한 상담일지에서 근거를 찾아 고른 항목과 겹치지 않는 새 내용으로 채운다/.test(A.prompt),'분석 요청: 강점·약점 남은 칸 채우기');
   ok(/\[빈칸 채우기 — 담당자가 장기목표 2개만 고름\] 고른 장기목표는 문구와 goalId를 그대로 쓰고, 남은 1칸은 체크한 상담일지에서 근거가 있고/.test(B.prompt),'목표 요청: 남은 1칸 채우기');
   const goals=t.ev('member().plan.goals.filter(g=>clean(g.long)).map(g=>g.long)');
-  ok(goals.length===3&&goals[0]===G1&&goals[1]===G2&&goals.includes('합리적으로 금전을 사용함.'),'고른 2개 + 새 목표 1개 = 3칸',goals);
+  ok(goals.length===3&&goals[0]===FT(t,G1)&&goals[1]===FT(t,G2)&&goals.includes(FT(t,'합리적으로 금전을 사용함.')),'고른 2개 + 새 목표 1개 = 3칸',goals);
   ok(!t.logs.some(l=>l[0]==='confirm'&&/새 장기목표/.test(l[1])),'확인 창 없이 채움');
   const sw=t.ev('({s:member().plan.strength,w:member().plan.weakness})');
   ok(sw.s[0]==='요리 프로그램에 관심이 많음.'&&sw.s.filter(Boolean).length===3&&new Set(sw.s).size===3,'강점: 고른 1개 + 상담일지로 2개',sw.s);
@@ -43,7 +44,7 @@ const G1='규칙적인 생활리듬과 자발적인 일상활동 참여능력을
   const t=boot(DIR,{stored:stored57({carry}),ai:b=>{if(/\[보완 요청\]/.test(b.prompt)){supSeen=b.prompt;return{goals:[{goalId:'',long:'합리적으로 금전을 사용함.',short:['용돈 기입장을 주 1회 함께 확인함.','군것질 지출을 주 2회 이하로 줄임.'],plan:['용돈 기입장을 주 1회 함께 확인할 계획임','군것질 지출을 함께 점검할 계획임'],activity:['용돈 기입장 확인'],target:['용돈 기입장 확인 주 1회'],src:[4]}]}}return base(b)}});
   await t.ev("runLocalAI('plan')");
   ok(/남은 칸은 체크한 상담일지에서 근거가 있고 이미 쓴 목표와 영역이 겹치지 않는 새 장기목표로 채운다/.test(supSeen),'보완 요청이 남은 칸 채우기를 부탁함');
-  const goals=t.ev('member().plan.goals.filter(g=>clean(g.long)).map(g=>g.long)');ok(goals[0]===G1&&goals.includes('합리적으로 금전을 사용함.'),'고른 목표 + 보완된 새 목표',goals);}
+  const goals=t.ev('member().plan.goals.filter(g=>clean(g.long)).map(g=>g.long)');ok(goals[0]===FT(t,G1)&&goals.includes(FT(t,'합리적으로 금전을 사용함.')),'고른 목표 + 보완된 새 목표',goals);}
  console.log('[6] 고르지 않았을 때는 예전 방식 그대로(새 장기목표는 확인 후 추가)');
  {const st=stored57();st.members[0].plan.goals=st.members[0].plan.goals.slice(0,2);const t=boot(DIR,{stored:st,ai:makeAI({newLongs:['합리적으로 금전을 사용함.']}),confirmFn:m=>!/새 장기목표/.test(m)});
   await t.ev("runLocalAI('plan')");const goals=t.ev('member().plan.goals.filter(g=>clean(g.long)).map(g=>g.long)');
@@ -51,7 +52,7 @@ const G1='규칙적인 생활리듬과 자발적인 일상활동 참여능력을
  console.log('[7] AI가 새 목표를 못 채워도 상담일지 근거 영역으로 남은 칸을 채움');
  {const carry={long:[G1,G2],strength:null,weakness:null,at:'2026-10-27T00:00:00Z'};const t=boot(DIR,{stored:stored57({carry}),ai:makeAI()});
   await t.ev("runLocalAI('plan')");const goals=t.ev('member().plan.goals.filter(g=>clean(g.long)).map(g=>({l:g.long,s:g.src}))');
-  ok(goals.length>=3&&goals[0].l===G1&&goals[1].l===G2&&goals.slice(2).every(g=>/^상담일지 \d/.test(g.s)),'고른 2개 + 상담일지 근거 영역의 목표',goals);
+  ok(goals.length>=3&&goals[0].l===FT(t,G1)&&goals[1].l===FT(t,G2)&&goals.slice(2).every(g=>/^상담일지 \d/.test(g.s)),'고른 2개 + 상담일지 근거 영역의 목표',goals);
   ok(/고른 장기목표 외 빈칸 \d개를 체크한 상담일지에 근거가 있는 영역의 목표로 채웠습니다/.test(t.ev('aiFormatNotes.join("|")')+'|'+t.logs.map(l=>l[1]).join('|')),'작성 안내에 표시');}
  done();
 })().catch(e=>{console.error(e);process.exitCode=1});

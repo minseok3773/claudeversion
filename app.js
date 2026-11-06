@@ -1,7 +1,7 @@
 'use strict';
 // v2.1: 기록 관리는 서버 없이 동작. AI는 사용자가 동의한 경우에만 라이브러리·모델을 외부에서 내려받음.
 const KEY='sehuim_rehab_offline_v1';
-const APP_RELEASE='3.23.2-design-blue';
+const APP_RELEASE='3.23.3-design-blue';
 const $=(s,root=document)=>root.querySelector(s);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s??'').trim();
@@ -4310,7 +4310,7 @@ function compileAIEvaluation(goals,result,previous){
  return e;
 }
 // v3.21.31: AI 자동작성 문체 — 담당자가 고친 계획서 양식에 맞춘 짧은 단문.
-const COMPACT_STYLE='[문체] ① 대화체 칸과 따옴표 안 회원·가족의 말을 빼고 모든 문장은 ‘~함’·‘~임’·‘~됨’으로 끝낸다. ② 한 문장에는 한 가지 내용만 쓴다. 두 가지 내용을 ‘~하며’·‘~하고’·‘~하나’·쉼표로 잇지 않고 문장을 나눈다. ‘이에 ~ 욕구가 있음’ 같은 요약 문장을 덧붙이지 않는다. ③ 상태·판단은 ‘양호함’·‘미흡함’·‘부족함’·‘향상됨’·‘저하됨’·‘안정적임’·‘적극적임’·‘소극적임’·‘수용성이 높음’ 같은 평가어로 맺는다. 강점·약점은 행동을 풀어 쓰지 않고 평가어로 압축한다(예: ‘물어보면 대답을 잘 하고 상담에 잘 응함’ → ‘상담 개입에 대한 수용성이 높음.’). ④ 추측(‘~로 보임’, ‘~인 듯함’, ‘~것 같음’, ‘~로 예상됨’), 감정·칭찬 표현(‘다행히’, ‘안타깝게’, ‘긍정적인 모습’, ‘노력하는 모습’), 정도 부사(‘매우’, ‘아주’, ‘너무’, ‘정말’, ‘굉장히’, ‘상당히’, ‘꽤’), ‘~하는 모습을 보임’, 1인칭 의견은 쓰지 않는다. ⑤ 회원의 마음·동기 같은 내면 상태는 단정하지 않고 기록된 행동으로 쓴다. ⑥ 영위·도모·제고·함양·고취·모색·강구 같은 어려운 한자어 대신 기관 문서에서 쓰는 쉬운 말을 쓴다(예: ‘일상생활을 영위함’ → ‘일상생활을 함’). ‘대상자’ 대신 ‘회원’, ‘사례담당자’ 대신 ‘사례관리자’로 쓴다. ⑦ 형식: 단기목표는 ‘1. ~ 2. ~’ 번호 목록, 재활계획·세부활동·성과목표는 ‘- ’ 줄로 쓴다. [객관적 기록] ‘고집스럽다’, ‘게으르다’, ‘집착’, ‘도벽’, ‘훔치다’ 같은 낙인·비난 표현 대신 관찰된 행동으로 중립적으로 쓴다(예: ‘고집스러운 태도’ → ‘직원의 안내를 거부함’, ‘훔침’ → ‘허락 없이 가져감’). [맞춤법] 의존 명사와 ‘이상·이하’는 띄어 쓴다(할 때, 거부한 적이 있음, 할 수 있음, 부재 시, 주 2회 이상, ○○ 등). 부정의 ‘안’, ‘못’은 띄어 쓴다(안 받음, 달성하지 못함). ‘-스런’이 아니라 ‘-스러운’으로 쓴다. [오타] 답하기 전에 모든 칸의 오타·맞춤법·띄어쓰기·조사(을/를, 이/가, 은/는)를 다시 읽어 고친다. 상담일지 원문의 오타는 옮기지 않고 바르게 고쳐 쓴다(따옴표 안 직접 인용은 말한 그대로 두되 맞춤법만 바로잡음).';
+const COMPACT_STYLE='[문체] ① 대화체 칸과 따옴표 안 회원·가족의 말을 빼고 모든 문장은 ‘~함’·‘~임’·‘~됨’으로 끝낸다. 단, 계획서의 장기목표·단기목표·재활계획·세부활동·성과목표는 앞으로 할 일이므로 ‘~한다’·‘~된다’·‘~이다’로 끝낸다(예: ‘주 2회 이상 참여한다.’, ‘진료에 동행한다.’). ② 한 문장에는 한 가지 내용만 쓴다. 두 가지 내용을 ‘~하며’·‘~하고’·‘~하나’·쉼표로 잇지 않고 문장을 나눈다. ‘이에 ~ 욕구가 있음’ 같은 요약 문장을 덧붙이지 않는다. ③ 상태·판단은 ‘양호함’·‘미흡함’·‘부족함’·‘향상됨’·‘저하됨’·‘안정적임’·‘적극적임’·‘소극적임’·‘수용성이 높음’ 같은 평가어로 맺는다. 강점·약점은 행동을 풀어 쓰지 않고 평가어로 압축한다(예: ‘물어보면 대답을 잘 하고 상담에 잘 응함’ → ‘상담 개입에 대한 수용성이 높음.’). ④ 추측(‘~로 보임’, ‘~인 듯함’, ‘~것 같음’, ‘~로 예상됨’), 감정·칭찬 표현(‘다행히’, ‘안타깝게’, ‘긍정적인 모습’, ‘노력하는 모습’), 정도 부사(‘매우’, ‘아주’, ‘너무’, ‘정말’, ‘굉장히’, ‘상당히’, ‘꽤’), ‘~하는 모습을 보임’, 1인칭 의견은 쓰지 않는다. ⑤ 회원의 마음·동기 같은 내면 상태는 단정하지 않고 기록된 행동으로 쓴다. ⑥ 영위·도모·제고·함양·고취·모색·강구 같은 어려운 한자어 대신 기관 문서에서 쓰는 쉬운 말을 쓴다(예: ‘일상생활을 영위함’ → ‘일상생활을 함’). ‘대상자’ 대신 ‘회원’, ‘사례담당자’ 대신 ‘사례관리자’로 쓴다. ⑦ 형식: 단기목표는 ‘1. ~ 2. ~’ 번호 목록, 재활계획·세부활동·성과목표는 ‘- ’ 줄로 쓴다. [객관적 기록] ‘고집스럽다’, ‘게으르다’, ‘집착’, ‘도벽’, ‘훔치다’ 같은 낙인·비난 표현 대신 관찰된 행동으로 중립적으로 쓴다(예: ‘고집스러운 태도’ → ‘직원의 안내를 거부함’, ‘훔침’ → ‘허락 없이 가져감’). [맞춤법] 의존 명사와 ‘이상·이하’는 띄어 쓴다(할 때, 거부한 적이 있음, 할 수 있음, 부재 시, 주 2회 이상, ○○ 등). 부정의 ‘안’, ‘못’은 띄어 쓴다(안 받음, 달성하지 못함). ‘-스런’이 아니라 ‘-스러운’으로 쓴다. [오타] 답하기 전에 모든 칸의 오타·맞춤법·띄어쓰기·조사(을/를, 이/가, 은/는)를 다시 읽어 고친다. 상담일지 원문의 오타는 옮기지 않고 바르게 고쳐 쓴다(따옴표 안 직접 인용은 말한 그대로 두되 맞춤법만 바로잡음).';
 const FORMAL_REGISTER_GUIDE='[과거 문체 정리 원칙] 이전 재활문서에 ‘했어요’·‘해요’·‘할 거예요’·‘좋아요’·‘합니다’ 같은 구어체·서술형 끝맺음이 섞여 있어도, 계획서의 장기·단기목표·재활계획·활동·성과목표와 평가서의 수행내역·달성도·평가·사례관리자 의견은 모두 객관적인 문어체(~함·~임·~하였음·~할 계획임)로 다시 쓴다. 과거 문서의 문장을 그대로 옮기지 않고 사실과 표현 방식을 나눈다. 회원·가족이 실제로 한 말의 직접 인용과 대화체 칸은 예외다. 앞으로의 계획을 이미 한 실적으로 바꾸거나 관찰과 진술을 섞지 않는다.';
 const MEMBER_SEPARATION_GUIDE='[개별 회원 정보 분리] 이 요청에 담긴 현재 회원의 체크된 상담기록과 현재 회원의 계획·평가 내용만 사실의 근거로 쓴다. 다른 회원의 상담기록, 이전 회원의 학습 예시, 공용 사전·전문자료의 개별 사례를 옮기거나 유추하지 않는다. 기록에 없는 구체적 진술·사건·증상·금액·날짜·횟수는 만들지 않는다.';
 // v3.21.70: Gemini 안내대로 긴 상담 근거 ‘뒤에’ 짧은 마지막 점검을 둔다(긴 자료 앞의 지시는 잊기 쉬움).
@@ -4362,6 +4362,26 @@ function claudeStubAnswer(kind,prompt){
  if(kind==='eval'){const ids=[...String(prompt).matchAll(/목표 \d+: goalId=(\S+) \/ 단기목표 원문/g)].map(x=>x[1]);
   return{participation:[{type:'사회심리재활',service:'∎ 〔참여 서비스〕',resource:'∎ 〔자원〕'}],goals:ids.map(id=>({goalId:id,activity:['〔실시 내용〕'],result:['〔결과〕'],analysis:'- 〔분석〕',achMember:'해당사항 없음',achStaff:'해당사항 없음',blockMember:'해당사항 없음',blockStaff:'해당사항 없음'})),overall:'- 〔종합〕',opinion:'- 〔의견〕'}}
  return{}}
+// v3.23.3: 계획서의 장기목표·단기목표·재활계획·세부활동·성과목표는 앞으로 할 일이므로 ‘~함/~됨/~임’을 ‘~한다/~된다/~이다’로 바꾼다.
+// (욕구·강점·약점·심리사회·평가 결과처럼 이미 있었던 사실을 쓰는 칸은 ‘~함/~임’ 그대로 둔다.)
+const HG=0xAC00,hJong=c=>{const v=c.charCodeAt(0)-HG;return v>=0&&v<11172?v%28:-1},hSetJong=(c,j)=>{const v=c.charCodeAt(0)-HG;return String.fromCharCode(HG+v-v%28+j)};
+const FUT_ADJ=/(?:필요|가능|불가능|부족|미흡|양호|원활|충분|적절|꾸준|깨끗|안전|편안|중요|어려|익숙|분명|확실)함$/;
+const FUT_SPECIAL={'도움':'돕는다','도울':'돕는다','있음':'있다','없음':'없다','같음':'같다'};
+function futureWord(w){if(FUT_SPECIAL[w])return FUT_SPECIAL[w];for(const k of Object.keys(FUT_SPECIAL))if(w.endsWith(k)&&k.length>=2)return w.slice(0,-k.length)+FUT_SPECIAL[k];
+ if(FUT_ADJ.test(w))return w.slice(0,-1)+'하다';
+ if(/(?:했|하였|였|었|았)음$/.test(w))return w;
+ if(w.endsWith('함'))return w.slice(0,-1)+'한다';if(w.endsWith('됨'))return w.slice(0,-1)+'된다';
+ if(/[줄늘높낮붙먹보]임$/.test(w))return w.slice(0,-1)+'인다';if(w.endsWith('임'))return w.slice(0,-1)+'이다';
+ if(w.length>=2&&w.endsWith('음')&&hJong(w[w.length-2])>0)return w.slice(0,-1)+'는다';
+ const last=w[w.length-1],j=hJong(last);if(j===16||j===10)return w.slice(0,-1)+hSetJong(last,4)+'다';
+ return w}
+function futureText(t){const src=String(t??'');if(!src.trim())return src;
+ return src.split(/([“"][^”"\n]*[”"])/).map((part,i)=>{if(i%2)return part;
+  let x=part.replace(/([가-힣]+)\s+(?:계획|예정)임(?=\s*(?:\([^()\n]*\))?\s*(?:[.。]|\n|$))/g,(a,v)=>{const l=v[v.length-1],j=hJong(l);if(FUT_SPECIAL[v])return FUT_SPECIAL[v];if(j===8)return v.slice(0,-1)+hSetJong(l,4)+'다';if(v.endsWith('을'))return v.slice(0,-1)+'는다';return a});
+  return x.replace(/([가-힣]+)(?=\s*(?:\([^()\n]*\))?\s*(?:[.。](?=\s|$)|\n|$))/g,w=>futureWord(w))}).join('')}
+function futurePlanDoc(doc){for(const g of doc?.plan?.goals||[])for(const k of ['long','short','plan','activity','target'])if(typeof g[k]==='string')g[k]=futureText(g[k]);
+ for(const g of doc?.evaluation?.goals||[]){for(const k of ['short','basis'])if(typeof g[k]==='string')g[k]=futureText(g[k]);for(const k of ['activity','result'])if(typeof g[k]==='string')g[k]=g[k].split('\n').map(l=>/^\s*▪/.test(l)?futureText(l):l).join('\n')}
+ return doc}
 // v3.23.0: 기록끼리 맞지 않는 점·원문 확인이 필요한 점(reviewNotes)을 본문에 섞지 않고 따로 모은다.
 function addReviewNotes(list,res){const a=isObj(res)?res.reviewNotes:null;const arr=Array.isArray(a)?a:typeof a==='string'?a.split(/\n+/):[];
  for(const x of arr){const t=clean(typeof x==='string'?x:isObj(x)?(x.note||x.text||''):'').replace(/^[-•▪∎]\s*/,'').slice(0,300);if(t&&!/^(?:없음|해당\s*사항\s*없음)\.?$/.test(t)&&!list.includes(t)&&list.length<12)list.push(t)}return list}
@@ -4528,6 +4548,7 @@ async function runLocalAICore(mode,{skipChecks=false}={}){
   checkCancel();
   // v3.21.58: 작성하는 동안 회원·상담일지·목표가 바뀌지 않았는지, 결과에 다른 회원의 문장이 없는지 확인한 뒤 한 번에 넣는다.
   if(claudeBatch?.mode==='capture'){claudeBatch.done=true;const err=Error('captured');err.code=CLAUDE_BATCH_ERR;throw err}
+  futurePlanDoc(working); // v3.23.3: 계획서의 목표·계획 칸은 앞으로 할 일이므로 ‘~한다’로 맞춘다.
   assertMemberAiSource(m,sourceFingerprint);assertNoForeignMemberText(m,working);
   const live=state.members.find(x=>x.id===currID);
   if(!live||live!==m)throw Error('회원 상태가 변경되어 문서를 적용하지 않았습니다.');
