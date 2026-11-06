@@ -1,7 +1,7 @@
 'use strict';
 // v2.1: 기록 관리는 서버 없이 동작. AI는 사용자가 동의한 경우에만 라이브러리·모델을 외부에서 내려받음.
 const KEY='sehuim_rehab_offline_v1';
-const APP_RELEASE='3.22.2-design-blue';
+const APP_RELEASE='3.22.3-design-blue';
 const $=(s,root=document)=>root.querySelector(s);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s??'').trim();
@@ -3661,7 +3661,9 @@ function claudeManualExchange(system,prompt,{json=true}={}){
   let d=document.getElementById('claudeDlg');if(!d){d=document.createElement('dialog');d.id='claudeDlg';document.body.appendChild(d)}
   d.style.width='min(860px,96vw)';d.style.maxHeight='94vh';d.style.overflow='auto';
   const extra=/빠진 목표 보완/.test(aiStatus)?' (추가 요청: 앞 답에서 빠진 목표 채우기)':'';
-  d.innerHTML=`<h3 style="margin-top:0">Claude로 작성 — ${no}번째 요청${extra}</h3>
+  // v3.22.3: 앞 답을 넣으면 다음 요청 창이 같은 모양으로 바로 떠서 ‘반응이 없다’고 느끼기 쉬우므로, 넣었다는 표시와 새 요청이라는 안내를 크게 보여 준다.
+  const doneNote=no>1?`<div role="status" style="background:#e7f6ec;border:1px solid #7cc493;color:#14532d;border-radius:8px;padding:10px 12px;margin:0 0 10px;font-weight:600">✓ ${no-1}번째 답을 프로그램에 넣었습니다. 이제 <u>새 요청문</u>을 Claude에 보내야 합니다.<br><span style="font-weight:400">아래 ‘Claude 채팅으로 보내기’를 다시 눌러 주세요. 앞서 쓰던 Claude 대화에 이어서 붙여 넣어도 됩니다.</span></div>`:'';
+  d.innerHTML=`${doneNote}<h3 style="margin-top:0">Claude로 작성 — ${no}번째 요청${extra}</h3>
 <p class="muted" style="margin:0 0 6px">${escapeHtml(aiStatus)}</p>
 <ol style="margin:6px 0 10px;padding-left:20px;line-height:1.7"><li><b>Claude 채팅으로 보내기</b>를 누릅니다. 요청문(상담일지 전문 포함 ${text.length.toLocaleString()}자)이 복사되고 내 계정의 Claude 새 대화가 열립니다.</li><li>Claude 입력창에 붙여 넣고(Ctrl+V) 보냅니다.${claudeOpenUrl(text)!==CLAUDE_URL?' (짧은 요청은 입력창에 미리 채워져 있으니 보내기만 누르면 됩니다)':''}</li><li>Claude 답변 아래의 <b>복사</b> 버튼으로 답 전체를 복사해 아래 칸에 붙여 넣고 <b>결과 넣기</b>를 누릅니다.</li></ol>
 <div class="toolbar"><button type="button" class="btn primary" id="cdSend">Claude 채팅으로 보내기</button><button type="button" class="btn" id="cdCopy">요청문만 복사</button><button type="button" class="btn" id="cdOpen">claude.ai만 열기</button><span class="muted" id="cdCopyMsg"></span></div>
