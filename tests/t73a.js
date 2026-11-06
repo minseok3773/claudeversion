@@ -15,7 +15,7 @@ let _t0=null;const t0=()=>_t0||(_t0=boot(DIR,{stored:stored57()}));
   ok(/재활계획에 필요한 욕구와 문제만 추론/.test(A)&&/familyDialogue는 빈 문자열/.test(A)&&/"reviewNotes":\[\]/.test(A),'회원 욕구는 재활계획에 필요한 것만 추론, 가족 말은 기록에 있을 때만, reviewNotes 칸');
   ok(/사건 나열 없이 평가어 한 문장으로 압축/.test(A)&&/잦은 충돌이 있었음/.test(A),'심리사회 영역은 사건 나열 없이 평가어로 압축');
   {const C=t.prompts.find(p=>/\[실천모델 평가\]/.test(p.prompt))?.prompt||'';ok(!C||/문제 기록이 없으면 횟수 기록이 없어도 ‘성과목표 달성함’/.test(C),'평가서: 문제 기록이 없으면 달성함')}
-  ok(/오타·맞춤법·띄어쓰기/.test(sys)&&/오타·띄어쓰기·조사/.test(A),'오타 점검 지시가 있음');
+  ok(/오타·맞춤법·띄어쓰기/.test(sys),'오타 점검 지시가 있음(공통 지침에 한 번)');
   ok(!/측정 수치는 target에 쓴다|재활계획은 회원이 원하는 변화와 실천 행동의 관계를 우선|3개까지 채우되|월 1회 상담은 측정·점검을 돕는 보조 수단일 뿐/.test(B),'단기목표 숫자 빼기·회원 행동 우선·3개 채우기·점검 금지 지시가 없음');
   ok(/항목마다 회원의 행동과 판정 기준/.test(B)&&/사례관리자가 앞으로 6개월 동안 할 구체적인 지원 방법을 ‘- ’ 줄로/.test(B)&&/같은 행동·같은 숫자 기준/.test(B)&&/목표도 그 개수만 쓴다/.test(B),'단기목표 측정 기준·재활계획=사례관리자 지원·성과목표=단기목표 기준·근거만큼 목표');}
  console.log('[2] 한 번에 보내는 요청문 — 중복 안내 한 번만, 마지막 점검은 상담일지 뒤, 자리표시 정리');
@@ -123,5 +123,13 @@ let _t0=null;const t0=()=>_t0||(_t0=boot(DIR,{stored:stored57()}));
   ok((txt.match(/\[관련 전문자료 — /g)||[]).length<=1,'전문자료는 한 단계에만',(txt.match(/\[관련 전문자료 — /g)||[]).length);
   ok((txt.match(/^평가기간: /gm)||[]).length===1,'평가기간 줄은 한 번만',(txt.match(/^평가기간: /gm)||[]).length);
   t.ev("document.querySelector('#claudeDlg')?.close?.()");}
+ console.log('[15] 한 번에 보내는 답 형식 단순화(v3.23.5)');
+ {const t=boot(DIR,{stored:stored57(),storage:ENGINE,ai:batchAI(makeAI())});t.ev("runLocalAI('plan-eval')");const d=await waitDlg(t);
+  const txt=d?t.ev("document.querySelector('#cdPrompt').value"):'';const cut=txt.lastIndexOf('[이번 답의 전체 형식]\n');const fmt=txt.slice(cut);const head=txt.slice(0,cut);
+  ok(/"step1": \{"appliedModel"/.test(fmt)&&/"step2": \{"appliedModel":"","goals"/.test(fmt)&&/"step3": \{"appliedModel":"","participation"/.test(fmt),'맨 아래에 단계별 실제 JSON 틀을 한곳에 보여 줌');
+  ok(!/JSON만: \{/.test(head)&&(head.match(/답 형식: 맨 아래/g)||[]).length===3,'단계 본문에는 JSON 틀을 되풀이하지 않음');
+  ok(!/"longRevise"/.test(fmt.split('\n}')[0])&&/필요할 때만|맞지 않을 때만/.test(fmt),'고칠 때만 쓰는 칸은 틀에서 빼고 안내만');
+  t.ev("document.querySelector('#claudeDlg')?.close?.()");}
+ {const t=t0();const r=t.ev("JSON.stringify(claudeBatchCheck([{a:1},{goals:[{}]}],[{kind:'assess'},{kind:'goals'}]))");ok(/"step1":\{"a":1\}/.test(r)&&/"step2"/.test(r),'단계 묶음 없이 배열로 온 답도 받음',r);}
  done();
 })();
