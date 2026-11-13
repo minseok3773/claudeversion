@@ -31,5 +31,7 @@ const DIR=process.argv[2]||require('path').resolve(__dirname,'..');
   {const f=src.slice(src.indexOf('function improveAIGoals('),src.indexOf('\n}',src.indexOf('function improveAIGoals(')));ok(f.length>100&&!/월 1회 정기상담에서 실천 여부/.test(f)&&!/할 계획임/.test(f),'AI 재활계획에 정해진 문장 덧붙이기 없음(규칙 기반 작성은 그대로)')}
   ok(!/replace\(\/관찰됨\|관찰되었음\/g,'상담기록에 보고됨'\)/.test(src),'관찰됨 일괄 변경 없음');
   ok(/프로그램이 AI 글을 고치거나 채운 곳/.test(src),'완료 창에 프로그램 처리 안내를 보여 줌');}
+ console.log('[8] 실무자 기록체 문체 지침(v3.23.10)');
+ ok(/⑧ 기관 실무자가 상담일지를 보고 직접 쓴 기록처럼/.test(ev('AI_SYSTEM'))&&ev('AI_SYSTEM.length')<=4000,'AI 티 나는 상투어·반복 금지 지침, 시스템 한도 4000자 안',ev('AI_SYSTEM.length'));
  done();
 })();
