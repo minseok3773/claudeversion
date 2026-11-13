@@ -1,7 +1,7 @@
 'use strict';
 // v2.1: 기록 관리는 서버 없이 동작. AI는 사용자가 동의한 경우에만 라이브러리·모델을 외부에서 내려받음.
 const KEY='sehuim_rehab_offline_v1';
-const APP_RELEASE='3.23.8-design-blue';
+const APP_RELEASE='3.23.9-design-blue';
 const $=(s,root=document)=>root.querySelector(s);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s??'').trim();
@@ -400,8 +400,13 @@ const NAME_STOP=/^(?:이번|이전|이후|오늘|다른|모든|해당|동료|담
 function nameHint(text){const re=new RegExp(NAME_RE.source,'g');for(const mt of piiNorm(text).matchAll(re))if(!NAME_STOP.test(mt[1])&&!NAME_STOP.test(mt[1].slice(0,2))&&!/(?:과|와|는|던|된|한|난|운|른|진다|있는|없는|같은|많은|적은)$/.test(mt[1]))return mt[1];return ''}
 // v3.23.4: AI로 보내기 전(Gemini 전송·Claude 요청문 복사 모두) 개인정보를 가린다. 주민번호·연락처·이메일·주소·계좌·면허 번호는 [항목명]으로,
 // (1577-0199 같은 기관 대표번호는 공개 정보라 그대로 둠) ‘김철수 회원’·‘이영희 어머니’처럼 이름+호칭은 가명A·가명B로 바꾼다(같은 이름은 늘 같은 가명). 회원 코드가 실명처럼 보이면 그 이름도 가명으로 바꾼다.
+const NOT_ROAD=/(?:으로|대로|스스로|따로|새로|홀로|서로|절로|별로|날로|주로|산책로|등산로|경로|진로|통로|선로|활로|퇴로|미로|피로|과로|항로|수로|회로|산책길|출근길|퇴근길|등굣길|하굣길|귀갓길|오솔길|둘레길|골목길|지름길|올레길|밤길|눈길|빗길)$/;
 const PII_MASK=[[PII[0][0],'[주민번호]'],[PII[1][0],'[연락처]'],[PII[2][0],'[연락처]'],[PII[3][0],'[연락처]'],[PII[5][0],'[이메일]'],
- [/[가-힣0-9]{2,}(?:로|길)\s*\d{1,4}(?:-\d{1,4})?(?:번길)?(?=[\s,.)에의은는이가]|$)|\d+\s*동\s*\d+\s*호/,'[주소]'],[PII[7][0],'[계좌번호]'],[PII[8][0],'[번호]']].map(([re,to])=>[new RegExp(re.source,'g'),to]);
+ [/([가-힣0-9]{2,}(?:로|길))\s*\d{1,4}(?:-\d{1,4})?(?:번길)?(?=[\s,.)에의은는이가]|$)|\d+\s*동\s*\d+\s*호/,(all,road,off,src)=>{
+  // v3.23.9: ‘앞으로 2, 3회’·‘산책로 1.’처럼 주소가 아닌 말을 [주소]로 가리지 않는다.
+  if(road&&(NOT_ROAD.test(road)||/^\s*,\s*\d/.test(String(src).slice(off+all.length))))return all;return '[주소]'}],[PII[7][0],'[계좌번호]'],[PII[8][0],'[번호]']].map(([re,to])=>[new RegExp(re.source,'g'),to]);
+// AI 답에 들어온 가명(가명A 등)은 원래 이름으로 되돌린다(이 브라우저 안에서만 알고 있는 짝).
+function unmaskPII(text){const t=String(text??'');if(!piiNameMap.size||!/가명[A-Z]/.test(t))return t;const back=new Map([...piiNameMap].map(([k,v])=>[v,k]));return t.replace(/가명[A-Z]\d*/g,w=>back.get(w)??w)}
 const piiNameMap=new Map();
 function piiPseudo(name){if(!piiNameMap.has(name)){const i=piiNameMap.size;piiNameMap.set(name,'가명'+String.fromCharCode(65+i%26)+(i>=26?String(Math.floor(i/26)):''))}return piiNameMap.get(name)}
 // 요청문의 안내 문장(예: ‘방법을 회원과’, ‘현재 회원’)을 이름으로 잘못 보지 않도록, 흔한 성 20개로 시작하는 세 글자 이름만 가명으로 바꾼다.
@@ -1512,12 +1517,13 @@ function checkActText(text,acts,{fix=true,pastOnly=false,futureMark=false,planne
     const f=findEvidence(nm,acts);
     if(!f){flagged=true;return all}
     if(num==null)return all;
-    if(f.count==null)return all.replace(/(\d{1,3})\s*회\s*/,'')+' (횟수 확인 필요)';
-    return Number(num)===f.count?all:all.replace(/\d{1,3}(\s*회)/,f.count+'$1');
+    // v3.23.9: AI가 쓴 횟수를 프로그램이 센 숫자로 바꾸지 않는다(상담일지에 모든 회기가 적혀 있지 않을 수 있음). 다르면 안내만 남긴다.
+    if(f.count!=null&&Number(num)!==f.count)aiFormatNotes.push(`‘${f.name}’ 실시 횟수: AI는 ${num}회로 썼고 체크한 상담일지에서 찾은 기록은 ${f.count}회임 — 출석부 등과 대조해 확인하세요.`);
+    return all;
    });
   }
   if(futureMark&&/(?:예정|향후|추후|앞으로|계획(?:임|이다|함|할)|할\s*것임)/.test(sent))flagged=true;
-  if(flagged){bad++;if(!out.includes(UNSUP))out=UNSUP+out.replace(/^\s+/,'')}
+  if(flagged){bad++;if(!sent.includes(UNSUP))aiFormatNotes.push(`상담일지에서 근거를 찾지 못한 문장: ‘${cut(clean(sent),60)}’ — 확인하세요.`)} // v3.23.9: 본문 앞에 표시를 붙이지 않음
   return out}).join(' ')).join('\n');
  return{text:fix?lines:String(text||''),bad};
 }
@@ -1705,8 +1711,8 @@ async function polishDocumentField(path){
   const rv=Array.isArray(result.revised)?result.revised.map(x=>str(x)).join('\n'):str(result.revised);const proposed=groundText((/Voice$|\.(?:achMember|blockMember)$/.test(path)?clean(rv):plainKo(clean(rv))),groundCtx(m,[before]));
   if(!proposed)throw Error('AI 수정 제안이 비어 있습니다.');
   const nd=numDiff(before,proposed);
-  if(nd.added.length)throw Error(`AI가 원문에 없는 숫자(${nd.added.slice(0,5).join(', ')})를 넣어 적용하지 않았습니다. 다시 한 번 실행하면 대부분 정상적으로 다듬어집니다`);
-  const reviewed=await askDialog({title:'AI 다듬기 — '+label,desc:(nd.dropped.length?`⚠ 원문에 있던 숫자 ${nd.dropped.slice(0,6).join(', ')}이(가) 빠졌습니다. 필요한 횟수·날짜라면 다시 넣어 주세요. `:'')+'AI 수정 제안을 검토해 주세요. 저장 전 수정할 수도 있습니다. 취소하면 기존 문구가 유지됩니다.',value:proposed,multiline:true,confirmText:'해당 문항에 적용'});
+  // v3.23.9: 새 숫자가 들어가도 막지 않는다(단기목표에 횟수를 넣는 다듬기). 확인 창에 알리고, 적용 전에 한 번 더 확인한다.
+  const reviewed=await askDialog({title:'AI 다듬기 — '+label,desc:(nd.added.length?`⚠ 원문에 없던 숫자 ${nd.added.slice(0,6).join(', ')}이(가) 들어갔습니다. 회원과 정한 기준인지 확인하세요. `:'')+(nd.dropped.length?`⚠ 원문에 있던 숫자 ${nd.dropped.slice(0,6).join(', ')}이(가) 빠졌습니다. 필요한 횟수·날짜라면 다시 넣어 주세요. `:'')+'AI 수정 제안을 검토해 주세요. 저장 전 수정할 수도 있습니다. 취소하면 기존 문구가 유지됩니다.',value:proposed,multiline:true,confirmText:'해당 문항에 적용'});
   if(reviewed==null)return;
   if(!clean(reviewed)){alert('빈 문장으로 교체하지 않았습니다.');return}
   {const ud=numDiff(before,reviewed);if(ud.added.length&&!confirm(`원문에 없던 숫자(${ud.added.slice(0,5).join(', ')})가 들어 있습니다.\n직접 확인한 횟수·날짜라면 확인을 눌러 적용하세요.`))return}
@@ -2129,7 +2135,7 @@ function fixFactorSides(g){
 }
 function memberFactor(text){if(evalPh(text))return EVAL_NONE;const out=[];
  for(const line of String(text).split('\n').map(x=>x.trim()).filter(Boolean)){const q=[...line.matchAll(/[“"]([^”"\n]{2,90})[”"]/g)].map(x=>`“${x[1].trim()}”`);if(q.length&&EMBED_REST(line).length>4){out.push('- '+line.replace(/^[\s\-•·]+/,''));continue}if(q.length)out.push(...q);else if(!evalPh(line))out.push(...toDash(line).split('\n'))}
- return [...new Set(out)].slice(0,4).join('\n')||EVAL_NONE}
+ return [...new Set(out)].join('\n')||EVAL_NONE} // v3.23.9: 4줄 제한 없앰
 const staffFactor=t=>evalPh(t)?EVAL_NONE:toDash(t);
 const shortDate=s=>String(s).replace(/(\d{1,2})월\s*(\d{1,2})일\s*:?\s*/,'$1/$2 ');
 // 단기목표 항목과 문장의 관련도: 단기목표의 낱말(앞 2글자)이 문장에 몇 개 들어 있는지
@@ -2170,7 +2176,7 @@ function distributeParts(items,parts,kind){
  if(cl.length===n&&n<=5){let best=null,bs=-1;for(const pm of permutations(n)){if(!pm.every((it,k)=>S[k][it]>0))continue;const sc=pm.reduce((a,it,k)=>a+S[k][it],0);if(sc>bs){bs=sc;best=pm}}if(best){best.forEach((it,k)=>own[it].push(cl[k]));done=true}}
  if(!done){let prev=0;cl.forEach((c,k)=>{let bi=-1,b=0;S[k].forEach((sc,i)=>{if(sc>b){b=sc;bi=i}});if(bi<0)bi=k===0?0:prev;own[bi].push(c);prev=bi})}
  return own.map(cs=>{if(!cs.length)return '';let t=cs.join(', ').replace(/\s+/g,' ').trim();
-  if(kind==='res'){if(!VERDICT_RE.test(t)&&verdict.length>1)t=clauseLink(t)+' '+verdict;return t}
+  if(kind==='res'){if(!VERDICT_RE.test(t)&&verdict.length>1){aiFormatNotes.push('성과목표 달성 내용: AI가 판정을 쓰지 않은 단기목표가 있어 판정 없이 두었음 — 직접 판정해 주세요.');t=t.replace(/[.。\s]*$/,'.')+' (판정 확인 필요)'}return t} // v3.23.9: 다른 단기목표의 판정을 복사하지 않는다
   return clauseEnd(t)})}
 // 상담일지 날짜 목록을 '활동명에 참여하였고(날짜), 날짜에는 참여하지 않음.' 한 문장으로 줄인다.
 function summarizeLog(lines){const acts=lastActs||[];const got=lines.map(l=>l.replace(/^-\s*/,''));
@@ -2225,14 +2231,15 @@ function styleEvalParticipation(e,m){const acts=serviceEvidence(m);
  for(const r of e.participation||[]){if(!clean(r.service)&&!clean(r.resource))continue;
   if(!/^\s*∎/.test(r.service||'')){const names=[...new Set(acts.filter(f=>mentions(r.service,f)).map(f=>f.name))];
    const other=String(r.service||'').split('\n').map(x=>stripCite(x.replace(/^\s*[-•·∎]\s*/,''))).filter(x=>x&&!isPh(x)&&!acts.some(f=>mentions(x,f)));
-   r.service=[...(names.length?[names.join(', ')]:[]),...other].map(x=>'∎ '+x.replace(/[.。]$/,'')).join('\n')}
+   void names;void other;r.service=String(r.service||'').split('\n').map(x=>stripCite(x.replace(/^\s*[-•·∎]\s*/,''))).filter(x=>x&&!isPh(x)).map(x=>'∎ '+x.replace(/[.。]$/,'')).join('\n')} // v3.23.9: AI 설명 문장을 활동 이름만 남기지 않음
   if(clean(r.resource)&&!/^\s*∎/.test(r.resource)){const res=[...new Set(String(r.resource).split(/\s*[,\n]\s*/).map(x=>stripCite(x)).filter(x=>x&&!isPh(x)))];r.resource=res.length?'∎ '+res.join(', '):r.resource}}}
 function styleEvaluation(e,goals,m){const acts=serviceEvidence(m),pool=noteSentences(m);lastActs=acts;
  // 담당자 양식: 참여 재활 활동 = 계획서의 재활 활동 계획(영역별 ∎) + 상담일지에서 실제 확인된 활동 이름
  {const planRows=(m.plan?.services||[]).filter(r=>clean(r.type)||clean(r.service));
   const aiRows=(e._aiPart||[]).filter(r=>clean(r.service)&&!isPh(r.service));delete e._aiPart;
   const extra=aiRows.length?[]:acts.filter(f=>f.used!==false&&!isJunkActName(f.name)).map(f=>({type:actSvcGroup(f),service:f.name,resource:''}));
-  if(planRows.length||aiRows.length)e.participation=groupPlanServices([...planRows,...aiRows,...extra])}
+  // v3.23.9: 계획서의 ‘재활활동 계획’ 줄은 실제 참여 기록이 아니므로 넣지 않는다. AI가 쓴 줄(없으면 상담일지에서 확인된 활동)만 쓴다.
+  if(aiRows.length||extra.length)e.participation=groupPlanServices([...aiRows,...extra]);else if(planRows.length)aiFormatNotes.push('참여 재활 활동: AI 답과 상담일지에서 실제 참여 활동을 찾지 못했음 — 계획서 활동을 실제로 했는지 확인해 직접 써 주세요.')}
  styleEvalParticipation(e,m);
  for(const g of e.goals||[]){const base=(goals||[]).find(x=>x.id===g.goalId);
   styleEvalActivity(g);styleEvalResult(g,base,m,acts,pool);g.result=enforceVerdicts(g.result);
@@ -2749,10 +2756,17 @@ function ensureEvidenceGoalDrafts(plan,m){const goals=(plan.goals||[]).filter(g=
   goals.push({...emptyGoal(),...t,longSince:'',src:'상담일지 '+ids.join(', ')});seen.add(a.id);added++}
  plan.goals=fillPlanGoalSlots(goals);return added}
 // 심리사회 8영역: AI가 순서 배열·빠진 영역·다른 영역 내용으로 쓰면 칸이 밀리지 않게 규칙 기반 내용으로 대신한다.
-function psychoSafe(raw,m){const keys=PSYCHO_AREA_KEYS;let bad='';
- if(Array.isArray(raw))bad='영역 이름 없이 순서 배열로 답함';else if(!isObj(raw))bad='형식을 알 수 없음';else{const miss=keys.filter(k=>typeof raw[k]!=='string');if(miss.length)bad=miss.length+'개 영역 빠짐';else{const vals=keys.map(k=>raw[k].trim());const mm=psychoDomainMismatch(vals);if(mm)bad='영역 내용 불일치('+mm+')'}}
- if(!bad)return null;aiFormatNotes.push('심리사회 8영역: AI 응답이 '+bad+' — 칸 밀림을 막기 위해 상담일지 기준(규칙 기반) 내용으로 넣음');
- try{const tmp=JSON.parse(JSON.stringify(m));tmp.carry=null;generateDraft(tmp,true);return tmp.plan.psycho}catch{return Array(8).fill('')}}
+function psychoSafe(raw,m){const keys=PSYCHO_AREA_KEYS;
+ // v3.23.9: AI 답의 한 칸이 어긋나 보인다고 8칸 전부를 규칙 문장으로 바꾸지 않는다. AI가 빠뜨린 영역만 상담일지 기준으로 채우고, 나머지는 AI 글을 그대로 둔다.
+ const okArr=Array.isArray(raw)&&raw.length===8&&raw.every(x=>typeof x==='string'||x==null);
+ if(okArr)return null;
+ const miss=isObj(raw)?keys.filter(k=>typeof raw[k]!=='string'):keys.slice();
+ if(!miss.length)return null;
+ let rule=Array(8).fill('');try{const tmp=JSON.parse(JSON.stringify(m));tmp.carry=null;generateDraft(tmp,true);rule=tmp.plan.psycho||rule}catch{}
+ const vals=keys.map((k,i)=>isObj(raw)&&typeof raw[k]==='string'?raw[k].trim():str(rule[i]));
+ aiFormatNotes.push(isObj(raw)?'심리사회 8영역: AI가 '+miss.length+'개 영역을 빠뜨려 그 영역만 상담일지 기준(규칙 기반)으로 채웠음 — 확인하세요.':'심리사회 8영역: AI 응답 형식을 알 수 없어 상담일지 기준(규칙 기반) 내용으로 넣었음 — 확인하세요.');
+ for(const {i,other} of psychoMismatchList(vals))aiFormatNotes.push('심리사회 '+(i+1)+'번 영역('+cats[i]+')의 내용이 '+cats[other]+'에 가까워 보임 — 칸이 맞는지 확인하세요.');
+ return vals}
 // v3.21.57: AI 평가서 — 계획서의 강점·약점(담당자가 고른 항목 포함)을 달성·방해 요인(회원)의 참고로 준다.
 function evalSWPrompt(m){const pick=k=>{const map=new Map();const picked=new Set((m.carry?.[k]||[]).map(bankKey));for(const v of [...(m.plan?.[k]||[]),...(m.carry?.[k]||[])])if(bankOk(v)&&swComplete(v)&&swOwn(m,v)&&(picked.has(bankKey(v))||(()=>{try{return voiceGrounded(v,m)}catch{return false}})())&&!map.has(bankKey(v)))map.set(bankKey(v),clean(v).replace(/\s+/g,' '));return [...map.values()].slice(0,5)};
  const s=pick('strength'),w=pick('weakness');if(!s.length&&!w.length)return '';
@@ -3633,7 +3647,7 @@ function collectEvidence(m,stage,budget){
   return hdr+body}).join('\n\n');
  return{text,used:items.length,total,outside:sel.outside.length,dropped,trunc}}
 const metaLine=e=>`상담기록 분석: 사용 ${e.used}/${e.total}건 · 평가기간 밖 제외 ${e.outside}건 · 분량 부족으로 제외 ${e.dropped}건(오래된 기록부터) · 일부 문장만 발췌 ${e.trunc}건`+(aiUsedName?` · 사용한 AI: ${aiUsedName}`:'')+(aiUsage.calls?` · 실제 API 사용량(총 ${aiUsage.calls}회): 입력 ${aiUsage.input.toLocaleString()} / 출력 ${aiUsage.output.toLocaleString()} / 합계 ${aiUsage.total.toLocaleString()}토큰`:' · 실제 토큰 사용량 미제공')+` · 입력 예산 상한 ${aiCtx.toLocaleString()}토큰`+(aiReduced?' · 한도 때문에 생략: '+['','전문자료 발췌','전문자료·과거 문서 발췌·학습 예시','전문자료·과거 문서 발췌·학습 예시·이전 평가 일부'][aiReduced]:'');
-function safeJson(content){let s=String(content||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');let v;try{v=JSON.parse(s)}catch{const a=s.indexOf('{'),b=s.lastIndexOf('}');if(a>=0&&b>a)v=JSON.parse(s.slice(a,b+1));else throw Error('AI 결과의 JSON 구조를 읽을 수 없습니다.')}if(!isObj(v))throw Error('AI 결과가 JSON 객체가 아닙니다.');return v}
+function safeJson(content){let s=unmaskPII(String(content||'')).trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');let v;try{v=JSON.parse(s)}catch{const a=s.indexOf('{'),b=s.lastIndexOf('}');if(a>=0&&b>a)v=JSON.parse(s.slice(a,b+1));else throw Error('AI 결과의 JSON 구조를 읽을 수 없습니다.')}if(!isObj(v))throw Error('AI 결과가 JSON 객체가 아닙니다.');return v}
 function aiErrorMessage(e){return String(e?.message||e||'알 수 없는 오류')}
 function aiFormatUnsupported(e){return /response[_ -]?format|json_object|json mode|unsupported.{0,25}json|does not support.{0,25}format/i.test(aiErrorMessage(e))}
 const sleepMs=ms=>new Promise(r=>setTimeout(r,ms));
@@ -3855,7 +3869,7 @@ function psychoFromAiByKey(raw){
   aiFormatNotes.push('심리사회 8영역: AI 응답 형식을 알 수 없어 비워 두었습니다 — 직접 작성하거나 다시 실행하세요.');
   return Array(8).fill('');
  }
- for(const {i} of psychoMismatchList(values))values[i]=PSY_FLAG+values[i];
+ for(const {i,other} of psychoMismatchList(values))aiFormatNotes.push('심리사회 '+(i+1)+'번 영역('+cats[i]+')의 내용이 '+cats[other]+'에 가까워 보임 — 칸이 맞는지 확인하세요.'); // v3.23.9: 본문에 표시를 넣지 않음
  if(values.some(v=>v.startsWith(PSY_FLAG)))aiFormatNotes.push('심리사회 8영역: 다른 영역 내용으로 보이는 칸을 노란색(확인 필요)으로 표시했습니다.');
  return values;
 }
@@ -3973,7 +3987,7 @@ function endWord(w,dot){
 // 문장 끝(마침표·줄 끝·끝 괄호 앞)의 서술어만 바꾼다.
 const END_RE=/([가-힣]+)(?=\s*(?:\([^()\n]*\))?\s*(?:[.。!?](?=\s|$)|\n|$))/g;
 function endsFix(seg){return String(seg).replace(END_RE,(w,_g,off,all)=>{const dot=/^\s*(?:\([^()\n]*\))?\s*[.。!?]/.test(all.slice(off+w.length));const r=endWord(w,dot);return r==null?w:r})}
-function styleText(t){const src=String(t??'');if(!src.trim())return src;return src.split(/([“"][^”"\n]*[”"])/).map((part,i)=>i%2?part:endsFix(part.replace(INTENSIFIER_RE,''))).join('')}
+function styleText(t){const src=String(t??'');if(!src.trim())return src;return src.split(/([“"][^”"\n]*[”"])/).map((part,i)=>i%2?part:endsFix(part)).join('')}
 // 목표 칸의 ‘~하기’ 끝말을 ‘~함’으로(활동 이름이 들어가는 세부활동·서비스 칸에는 쓰지 않음)
 const GI_MAP={받:'받음',지키:'지킴',줄이:'줄임',늘리:'늘림',들:'듦',마시:'마심',먹:'먹음',걷:'걸음',씻:'씻음',읽:'읽음',타:'탐',일어나:'일어남',다니:'다님',배우:'배움',익히:'익힘',세우:'세움',끄:'끔',모으:'모음',바꾸:'바꿈',찾:'찾음',맞추:'맞춤',갖:'가짐',가지:'가짐',낮추:'낮춤',높이:'높임',기르:'기름',만들:'만듦',나누:'나눔',지내:'지냄',만나:'만남',쉬:'쉼',입:'입음',벗:'벗음',닦:'닦음',바르:'바름',버리:'버림',치우:'치움',돌보:'돌봄',살피:'살핌',고르:'고름',기다리:'기다림',견디:'견딤',참:'참음',듣:'들음',웃:'웃음',끊:'끊음',앉:'앉음',눕:'누움',돕:'도움',켜:'켬',넣:'넣음',빼:'뺌',채우:'채움',쓰:'씀',가:'감',오:'옴',보:'봄',자:'잠',알리:'알림',모이:'모임',보이:'보임'};
 const GI_KEYS=Object.keys(GI_MAP).sort((a,b)=>b.length-a.length);
@@ -3984,9 +3998,7 @@ function styleGoals(plan){for(const g of plan?.goals||[]){if(!isObj(g))continue;
 const STYLE_SKIP=new Set(['memberVoice','familyVoice','managerBasis','id','goalId','src','models','practiceModels','needSrc','voiceSrc','date','start','end']);
 function styleDocText(o,skip=STYLE_SKIP,d=0){if(!o||typeof o!=='object'||d>6)return o;for(const k of Object.keys(o)){if(skip.has(k))continue;const v=o[k];if(typeof v==='string')o[k]=styleText(v);else if(Array.isArray(v))o[k]=v.map(x=>typeof x==='string'?styleText(x):(x&&typeof x==='object'?styleDocText(x,skip,d+1):x));else if(v&&typeof v==='object')styleDocText(v,skip,d+1)}return o}
 const PLAIN_MAP=[[/\s*\((?:상담일지|기록)\s*\d[^)]*\)|\s*\[(?:기록|근거|상담일지)\s*\d[^\]]*\]/g,''],[/있습니다/g,'있음'],[/없습니다/g,'없음'],[/필요합니다/g,'필요함'],[/됩니다/g,'됨'],[/입니다/g,'임'],[/했습니다/g,'했음'],[/하였습니다/g,'하였음'],[/겠습니다/g,'겠음'],[/합니다/g,'함'],
- [/(?<![가-힣]\s?)대상자는/g,'회원은'],[/(?<![가-힣]\s?)대상자가/g,'회원이'],[/(?<![가-힣]\s?)대상자를/g,'회원을'],[/(?<![가-힣]\s?)대상자와/g,'회원과'],[/(?<![가-힣]\s?)대상자로/g,'회원으로'],[/(?<![가-힣]\s?)대상자(?![가-힣])/g,'회원'],
- [/영위(?:하고)/g,'하고'],[/영위(?:하여)/g,'하여'],[/영위(?:하기)/g,'하기'],[/영위(?:함)/g,'함'],[/영위(?:할)/g,'할'],[/영위(?:하는)/g,'하는'],
- [/안정(?:을|의)?\s*도모함/g,'안정을 도움'],...PLAIN_VERB];
+ [/(?<![가-힣]\s?)대상자는/g,'회원은'],[/(?<![가-힣]\s?)대상자가/g,'회원이'],[/(?<![가-힣]\s?)대상자를/g,'회원을'],[/(?<![가-힣]\s?)대상자와/g,'회원과'],[/(?<![가-힣]\s?)대상자로/g,'회원으로'],[/(?<![가-힣]\s?)대상자(?![가-힣])/g,'회원'],]; // v3.23.9: 증진·도모·영위·함양·모색 같은 전문 용어를 쉬운 말로 바꾸지 않는다(담당자 요청). PLAIN_VERB는 쓰지 않음.
 // v3.21.48: 한글 맞춤법(제42항 의존 명사, 제45항 '등' 띄어쓰기, '-스러운', 부정의 '안·못')과 객관적 표현으로 고친다.
 const hasJong=(ch,k)=>{const c=String(ch).charCodeAt(0)-0xAC00;return c>=0&&c<11172&&c%28===k};
 const GRAMMAR_FIX=[
@@ -4004,10 +4016,10 @@ const GRAMMAR_FIX=[
  [/(,\s*[^,\n()]{0,14}[^\s,\n()0-9])등(?=[\s,.)]|$)/g,'$1 등'],
  [/사례담당자/g,'사례관리자'],
  [/(과제|문제)\s*중심\s*모델/g,'$1중심모델'],[/심리\s*사회\s*모델/g,'심리사회모델'],[/인지\s*행동\s*모델/g,'인지행동모델'],[/위기\s*개입\s*모델/g,'위기개입모델'],[/임파워먼트\s*모델/g,'임파워먼트모델'],[/행동\s*주의\s*모델/g,'행동주의모델'],
- [INTENSIFIER_RE,''],
- [/(?<![가-힣])(?:다행히|다행스럽게도|안타깝게도|아쉽게도|놀랍게도|기특하게도)\s*/g,''],
+ // v3.23.9: ‘매우·너무’ 같은 정도 표현은 심각도를 담으므로 지우지 않는다.
+
  [/([가-힣]+)하는 모습을 보였으나/g,'$1하였으나'],[/([가-힣]+)하는 모습을 보였음/g,'$1하였음'],[/([가-힣]+)하는 모습을 보이며/g,'$1하며'],[/([가-힣]+)하는 모습을 보이고/g,'$1하고'],[/([가-힣]+)하는 모습을 보임/g,'$1함'],[/([가-힣]+)한 모습을 보임/g,'$1함'],[/([가-힣]+)된 모습을 보임/g,'$1됨'],[/([가-힣]+)되는 모습을 보였음/g,'$1되었음'],[/([가-힣]+)되는 모습을 보임/g,'$1됨'],
- [/훔쳐서/g,'허락 없이 가져가서'],[/훔쳐/g,'허락 없이 가져가'],[/훔친/g,'허락 없이 가져간'],[/훔쳤/g,'허락 없이 가져갔'],[/훔침/g,'허락 없이 가져감']];
+ ];
 function plainKo(t){const src=String(t??'');return src.split(/([“"][^”"\n]*[”"])/).map((part,i)=>{if(i%2)return part;let s=part;for(const [re,to] of PLAIN_MAP)s=s.replace(re,to);for(const [re,to] of GRAMMAR_FIX)s=s.replace(re,to);return endsFix(s)}).join('')}
 function plainDoc(o,skip=new Set()){for(const k of Object.keys(o||{})){if(skip.has(k)||['id','goalId','src','needSrc','voiceSrc','swUses','swSince','longSince'].includes(k))continue;const v=o[k];if(typeof v==='string')o[k]=plainKo(v);else if(Array.isArray(v))o[k]=v.map(x=>typeof x==='string'?plainKo(x):(x&&typeof x==='object'?plainDoc(x,skip):x));else if(v&&typeof v==='object')plainDoc(v,skip)}return o}
 // v3.21.32: 단기목표·재활계획·세부활동·성과목표는 '1. ~\n2. ~' 번호 목록(단기목표 1개당 재활계획 1개).
@@ -4079,8 +4091,11 @@ function flatText(o,out=[],d=0){if(o==null||d>8)return out;if(typeof o==='string
 // 이 회원의 기록(주제 확인용)과 이미 있던 문서(그대로 둘 문장)
 function groundCtx(m,keepDocs=[]){const topic=[...(m?.notes||[]).map(n=>[n.title,n.body,...NOTE_FIELDS.map(k=>n[k])].join('\n')),m?.ability||'',...(m?.legacyDocs||[]).map(d=>d?.text||'')].join('\n');
  return{topic,keep:groundKey(flatText(keepDocs).join('\n'))}}
+// v3.23.9: ‘○○병원’처럼 상담일지에 가명으로 적힌 표현을 AI가 그대로 옮겨 쓴 문장은 빼지 않는다. ‘○○’만 덩그러니 남은 예시 자리표시는 그대로 뺀다.
+function circleKnown(s,topic){const toks=String(s).match(/[가-힣A-Za-z0-9]*○+\s?[가-힣A-Za-z0-9]*/g)||[];const T=String(topic||'');
+ return toks.length>0&&toks.every(tok=>{const t=tok.trim(),last=t.lastIndexOf('○');for(let L=t.length;L>=last+2;L--){const p=t.slice(0,L);if(/○[가-힣A-Za-z0-9]/.test(p.replace(/\s/g,''))&&T.includes(p))return true}return false})}
 function isForeign(t,ctx){const s=String(t||'');const k=groundKey(s);if(!k)return false;if(k.length>=4&&ctx.keep.includes(k))return false;
- if(/○/.test(s))return true;return FOREIGN_RULES.some(([a,b])=>a.test(s)&&!b.test(ctx.topic))}
+ if(/○/.test(s)&&!circleKnown(s,ctx.topic))return true;return FOREIGN_RULES.some(([a,b])=>a.test(s)&&!b.test(ctx.topic))}
 function splitSents(line){const out=[];for(const p of String(line).split(/(?<=[.。!?])\s+(?=\S)/)){if(out.length&&/^\s*(?:[-▪∎■•]\s*)?(?:\d+|[①-⑳])\.$/.test(out[out.length-1]))out[out.length-1]+=' '+p;else out.push(p)}return out}
 // 근거 없는 문장을 빼고, 앞 문장이 빠져 첫 문장이 된 ‘다만·하지만·또한’ 같은 이음말은 지운다.
 const LEAD_LINK=/^(?:다만|하지만|그러나|그런데|또한|그리고|반면에?|한편|따라서|그래서|이에)\s*,?\s*/;
@@ -4122,14 +4137,14 @@ const EVAL_NO_ACT='- 평가기간 상담일지에서 관련 기록이 확인되�
 function groundAssessment(a,ctx){if(!isObj(a))return a;
  for(const k of ['memberDialogue','familyDialogue','memberNeed','familyNeed','opinion'])if(typeof a[k]==='string')a[k]=groundText(a[k],ctx);
  if(Array.isArray(a.managerItems))a.managerItems=a.managerItems.filter(x=>!isObj(x)||!isForeign(x.title,ctx)).map(x=>{if(isObj(x)&&typeof x.reason==='string')x.reason=x.reason.split('\n').map(l=>l.split(/\s*\/\s*/).filter(t=>!isForeign(t,ctx)).join(' / ')).filter(l=>clean(l)).join('\n');return x});
- if(isObj(a.psycho))for(const k of Object.keys(a.psycho))if(typeof a.psycho[k]==='string'){const v=groundText(a.psycho[k],ctx);a.psycho[k]=clean(v)?v:(clean(a.psycho[k])?'▪ 해당사항 없음.':v)}
+ if(isObj(a.psycho))for(const k of Object.keys(a.psycho))if(typeof a.psycho[k]==='string'){const v=groundText(a.psycho[k],ctx);a.psycho[k]=clean(v)?v:(clean(a.psycho[k])?(aiFormatNotes.push('심리사회 영역('+(cats[PSYCHO_AREA_KEYS.indexOf(k)]||k)+'): AI 문장이 이 회원 기록과 맞지 않아 뺐음 — 상담일지를 보고 직접 써 주세요.'),'▪ (확인 필요)'):v)}
  for(const k of ['strength','weakness'])if(Array.isArray(a[k]))a[k]=a[k].filter(x=>typeof x!=='string'||!isForeign(x,ctx));
  return a}
 function groundPlan(p,ctx){if(!p)return p;
  for(const k of ['memberNeed','familyNeed','opinion','memberVoice','familyVoice'])if(typeof p[k]==='string')p[k]=groundText(p[k],ctx);
  if(typeof p.managerNeed==='string')p.managerNeed=groundManager(p.managerNeed,ctx);
  for(const k of ['strength','weakness']){if(Array.isArray(p[k]))p[k]=p[k].map(x=>typeof x==='string'&&isForeign(x,ctx)?'':x);else if(typeof p[k]==='string')p[k]=groundText(p[k],ctx)}
- if(Array.isArray(p.psycho))p.psycho=p.psycho.map(x=>{if(typeof x!=='string')return x;const v=groundText(x,ctx);return clean(v)?v:(clean(x)?'▪ 해당사항 없음.':v)});
+ if(Array.isArray(p.psycho))p.psycho=p.psycho.map(x=>{if(typeof x!=='string')return x;const v=groundText(x,ctx);return clean(v)?v:(clean(x)?(aiFormatNotes.push('심리사회 영역: AI 문장이 이 회원 기록과 맞지 않아 뺐음 — 상담일지를 보고 직접 써 주세요.'),'▪ (확인 필요)'):v)});
  let gone=0;if(Array.isArray(p.goals)){const n0=p.goals.length;p.goals=p.goals.filter(g=>!isObj(g)||groundGoal(g,ctx));gone=n0-p.goals.length}
  if(Array.isArray(p.services))p.services=p.services.filter(r=>{if(!isObj(r))return true;const had=clean(r.service);r.service=groundList(r.service,ctx);r.resource=groundList(r.resource,ctx);if(had&&!clean(r.service))return false;if(clean(r.service)&&!clean(r.resource))r.resource='∎ 내부자원';return true});
  return gone}
@@ -4167,7 +4182,7 @@ function voiceGrounded(line,m){const t=String(line||'').replace(/[“”"]/g,'')
 function compileAIPlan(assessment,action,voice,noteCount,allowedIndices=null,m=null){const grounded=l=>!m||voiceGrounded(l,m);
  const p=emptyPlan();p.memberVoice=voice.memberVoice;p.familyVoice=voice.familyVoice;
  // v3.21.28: 직접 인용이 있으면 그대로, 부족하면 AI 대화체를 보탠다. 표지·출처 문구 없이 말한 내용만 쓴다.
- const mergeV=(base,src,ai)=>{if(src==='direct'){const L=base.split('\n').filter(Boolean);if(L.length<2)for(const a of ai)if(!L.includes(a)&&L.length<3)L.push(a);return{text:L.join('\n'),src:'direct'}}return ai.length?{text:ai.slice(0,3).join('\n'),src:src==='reconstructed'?'reconstructed':'inferred'}:{text:base,src}};
+ const mergeV=(base,src,ai)=>{if(src==='direct'){const L=base.split('\n').filter(Boolean);if(L.length<2)for(const a of ai)if(!L.includes(a)&&L.length<3)L.push(a);return{text:L.join('\n'),src:'direct'}}return ai.length?{text:ai.join('\n'),src:src==='reconstructed'?'reconstructed':'inferred'}:{text:base,src}};
  {const a=mergeV(voice.memberVoice,voice.memberVoiceSrc,voiceLines(stringOr(assessment.memberDialogue)).filter(grounded)),b=mergeV(voice.familyVoice,voice.familyVoiceSrc,voiceLines(stringOr(assessment.familyDialogue)).filter(grounded));
   p.memberVoice=a.text;p.familyVoice=b.text;p.voiceSrc={member:a.src,family:b.src}}
  for(const key of ['memberNeed','familyNeed','opinion'])p[key]=stringOr(assessment[key]);
@@ -4177,11 +4192,11 @@ function compileAIPlan(assessment,action,voice,noteCount,allowedIndices=null,m=n
  // 욕구 기술에 출처 표지('가족 직접 진술 없음' 등)만 있거나 비어 있으면 대화체에서 다시 만든다.
  for(const [k,v,who] of [['familyNeed','familyVoice','family'],['memberNeed','memberVoice','member']]){p[k]=clean(p[k]).replace(/^\[[^\]]*\]\s*/,'').replace(/(?:가족|회원)\s*직접\s*진술\s*(?:없음|아님)[.。]?\s*/g,'').trim();if(!p[k]||/확인 필요|자료 부족|확인되지 않/.test(p[k]))p[k]=ruleNeed(p[v],who)||p[k]}
  
- p.psycho=(m&&psychoSafe(assessment.psycho,m))||psychoFromAiByKey(assessment.psycho); /* v3.21.58: 칸 밀림 방지 */p.strength=arrN(assessment.strength,3);p.weakness=arrN(assessment.weakness,3);
+ p.psycho=(m&&psychoSafe(assessment.psycho,m))||psychoFromAiByKey(assessment.psycho); /* v3.21.58: 칸 밀림 방지 */for(const [k,nm] of [['strength','강점'],['weakness','약점']])if(Array.isArray(assessment[k])&&assessment[k].filter(x=>clean(str(x))).length>3)aiFormatNotes.push(`${nm}: 양식 칸이 3개라 AI가 쓴 ${assessment[k].filter(x=>clean(str(x))).length}개 중 앞의 3개만 넣었음 — 빠진 것: ${assessment[k].filter(x=>clean(str(x))).slice(3).map(x=>clean(str(x))).join(' / ')}`);p.strength=arrN(assessment.strength,3);p.weakness=arrN(assessment.weakness,3);
  p.goals=(Array.isArray(action.goals)?action.goals:[]).filter(isObj).slice(0,Math.max(REHAB_GOAL_SLOTS,(()=>{try{return m?carryGoals(m).length:0}catch{return 0}})())).map(g=>({id:uid(),goalId:clean(str(g.goalId)),...Object.fromEntries(['long','short','plan','activity','target'].map(k=>[k,Array.isArray(g[k])?numList(numItems(g[k])):stringOr(g[k])])),src:srcText(g.src,noteCount,allowedIndices)||'근거 기록 미지정 — 직접 확인',longRevise:clean(str(g.longRevise)),longReason:clean(str(g.longReason))}));
  if(!p.goals.length)throw Error('AI 결과에 유효한 재활목표가 없습니다.');
  p.goals.forEach(numberGoalFields);
- p.services=(Array.isArray(action.services)?action.services:[]).filter(isObj).slice(0,6).map(g=>Object.fromEntries(['type','service','resource'].map(k=>[k,stringOr(g[k])])));
+ p.services=(Array.isArray(action.services)?action.services:[]).filter(isObj).slice(0,15).map(g=>Object.fromEntries(['type','service','resource'].map(k=>[k,stringOr(g[k])]))); // v3.23.9: 6줄 → 15줄
  if(!p.services.length)p.services=[{type:'사회심리재활',service:'세부 서비스 확인 필요',resource:'기관 내·외 자원 확인 필요'}];
  p.services=groupPlanServices(p.services);
  plainDoc(p,new Set(['memberVoice','familyVoice']));styleGoals(p);
@@ -4197,9 +4212,8 @@ function improveAIGoals(plan,m,{preserveExisting=false}={}){
  if(!preserveExisting){
   const seen=new Map();
   for(const g of goals){
-   const domain=goalEvidenceDomain(g);
-   const key=domain==='daily'&&/(?:산책|운동|일상|활동|생활리듬)/.test(g.long+' '+g.short)?'daily-activity':
-     (clean(g.long)?'text:'+clean(g.long).replace(/[.\s]/g,''):null);
+   // v3.23.9: 같은 영역 낱말이 있다고 다른 목표의 장기목표 문구로 덮어쓰지 않는다(문구가 같은 경우만 맞춤).
+   const key=clean(g.long)?'text:'+clean(g.long).replace(/[.\s]/g,''):null;
    if(!key)continue;
    if(!seen.has(key))seen.set(key,g.long); // v3.21.31: 중복일 때만 첫 목표 문구로 맞추고, AI가 쓴 문구를 고정 문장으로 바꾸지 않는다.
    g.long=seen.get(key);
@@ -4214,21 +4228,16 @@ function improveAIGoals(plan,m,{preserveExisting=false}={}){
   if(vague){
    const freq=/(?:주|매주)\s*([1-7])\s*회/.exec(st);
    const mfreq=/(?:월|매월)\s*([1-9]|1[0-9])\s*회/.exec(st);
+   // v3.23.9: 틀 문장(참여율 80%·협의 후 확정)을 넣지 않는다. 단기목표에 횟수가 있으면 같은 기준으로만 채운다.
    if(freq||mfreq){
     const label=freq?`주 ${freq[1]}회`:`월 ${mfreq[1]}회`;
-    g.target=`6개월간 ${label} 참여율 80% 이상(협의 후 확정)`;
-   }else{
-    g.target='목표 행동 수행 횟수를 활동기록·상담일지로 월별 집계함(협의 후 확정)';
-   }
-   needsReview.push(`${i+1}번 목표의 성과기준은 초안 제안이므로 회원 합의 필요`);
+    g.target=`6개월간 ${label} 이상 수행함.`;
+    needsReview.push(`${i+1}번 목표의 성과목표가 비어 있어 단기목표와 같은 기준(${label})으로 채웠음`);
+   }else needsReview.push(`${i+1}번 목표의 성과목표가 비어 있거나 기준이 없음 — 단기목표와 같은 기준으로 써 주세요`);
   }// v3.23.4: 숫자가 있는 성과목표마다 ‘(협의 후 확정)’을 붙이던 것을 뺌(근거가 약한 기준 숫자는 검토 의견으로 따로 알림).
   // 적어도 하나의 수행주기/점검방법을 계획에 제안. 이미 세부 점검이 명시되면 중복하지 않는다.
-  if(pn&&isListText(pn)){/* 단기목표별 재활계획 줄 구조 유지 */}
-  else if(pn&&!/(?:월\s*\d+회|매월|주\s*\d+회|매주|정기적으로.{0,12}점검|매일|일일)/.test(pn)){
-   g.plan=pn.replace(/(지원|독려|제공)함\.?$/,(_,word)=>word+'할 계획임.')+'\n월 1회 정기상담에서 실천 여부를 점검하고 상담일지에 기록함.';
-  }else if(pn&&!/(?:기록|점검|평가|모니터링|확인)/.test(pn)){
-   g.plan=pn+'\n월 1회 참여 결과를 상담일지에 기록함.';
-  }
+  // v3.23.9: 재활계획에 정해진 문장을 덧붙이지 않고, 지원 주기가 없으면 안내만 남긴다.
+  if(pn&&!isListText(pn)&&!/(?:월\s*\d+회|매월|주\s*\d+회|매주|정기적으로.{0,12}점검|매일|일일)/.test(pn))needsReview.push(`${i+1}번 목표의 재활계획에 지원 주기(언제·얼마나 자주)가 없음`);
  }
  // 간접 진술을 직접 관찰로 바꾸는 문제: 직접 관찰 근거가 없으면 전문적 판단에 표시함.
  const used=noteSelection(m).used;
@@ -4236,9 +4245,8 @@ function improveAIGoals(plan,m,{preserveExisting=false}={}){
  const reported=/(?:회원|본인).{0,35}(?:진술|호소|말함|표현|이야기)/.test(all);
  const observed=/(?:직원|담당자|상담자).{0,35}(?:직접\s*관찰|관찰함|목격|직접\s*확인)|(?:CCTV|현장).{0,20}(?:확인|관찰)/.test(all);
  if(reported&&!observed){
-  for(const k of ['managerBasis','opinion']){
-   plan[k]=str(plan[k]).replace(/관찰됨|관찰되었음/g,'상담기록에 보고됨');
-  }
+  // v3.23.9: ‘관찰됨’을 한꺼번에 바꾸지 않고 안내만 남긴다.
+  if(['managerBasis','opinion'].some(k=>/관찰됨|관찰되었음/.test(str(plan[k]))))aiFormatNotes.push('사례관리자 근거·의견에 ‘관찰됨’이 있으나 상담일지에는 직원 관찰 기록이 보이지 않음 — 회원 진술인지 직원 관찰인지 확인하세요.');
  }
  if(needsReview.length)aiFormatNotes.push('[성과지표 검토] '+needsReview.join('; ')+'.');
  return plan;
@@ -4264,7 +4272,7 @@ function alignAIPlanGoals(existing,candidates,{strictIds=false,autoFill=false}={
   const valid=matches.find(i=>sameLong(candidates[i]))??matches.find(i=>{
    const candDomain=goalEvidenceDomain(candidates[i]);
    return !(domain&&candDomain&&domain!==candDomain);
-  });
+  })??(matches.length?(warnings.push(`${index+1}번 목표: 낱말로 본 영역은 달라 보이지만 목표 ID가 같아 AI 초안을 썼음 — 장기목표와 단기목표가 맞는지 확인`),matches[0]):undefined); // v3.23.9
   if(valid!==undefined){
    chosen.add(valid);
    const c=candidates[valid];
@@ -4336,7 +4344,7 @@ function validateEvaluationDomains(goals,matched){
 function compileAIEvaluation(goals,result,previous){
  const matched=matchAIResultGoals(goals,result.goals);validateEvaluationDomains(goals,matched);
  const e=emptyEvaluation();
- e.participation=(Array.isArray(result.participation)?result.participation:[]).filter(isObj).slice(0,6).map(g=>({type:stringOr(g.type),service:stringOr(g.service),resource:stringOr(g.resource)}));
+ e.participation=(Array.isArray(result.participation)?result.participation:[]).filter(isObj).slice(0,15).map(g=>({type:stringOr(g.type),service:stringOr(g.service),resource:stringOr(g.resource)}));
  if(e.participation.length)e._aiPart=e.participation.map(r=>({...r}));
  if(!e.participation.length)e.participation=[{type:'실제 참여활동 확인 필요',service:'6개월간 실제 제공된 서비스를 확인해야 함.',resource:'실제 활용된 자원 확인 필요'}];
  e.goals=goals.map(g=>{const src=matched.get(g.id);const old=(previous?.goals||[]).find(x=>x.goalId===g.id);const keep=old&&(clean(old.basis)||clean(old.short))===clean(g.short);const before=keep?old.before:'',after=keep?old.after:'';
@@ -4610,7 +4618,7 @@ async function runLocalAICore(mode,{skipChecks=false}={}){
      plan.goals=aligned.goals;
      goalAlignmentWarnings.push(...aligned.warnings);
      applyLongRevisions(plan.goals,aligned.revisions,reviewNotes);
-     goalAlignmentWarnings.push('기존 장기목표와 목표 ID를 유지하고 관련 단기목표만 연결했습니다. 연결되지 않은 목표는 기존 단기계획을 보존했습니다.');
+     /* v3.23.9: 늘 같은 안내는 빼고 실제로 바꾼 곳만 알린다 */
      // v3.21.58: 이어 쓸 장기목표인데 AI 초안이 없어 단기목표가 비면, 이 회원의 상담일지로 규칙 기반 작성을 해 채운다(다른 목표 내용을 끼워 넣지 않음).
      {const empty=plan.goals.filter(g=>clean(g.long)&&(!clean(g.short)||/확인 필요/.test(g.short)));if(empty.length){const made=ruleGoalsFor(target,empty.map(g=>g.long));let n=0;for(const g of empty){const r=made.get(bankKey(g.long));if(r&&clean(r.short)&&!/확인 필요/.test(r.short)){g.short=r.short;g.plan=r.plan;g.activity=r.activity;g.target=r.target;g.src=r.src||g.src;if(!normModels(g.models).length)g.models=normModels(r.models);n++}}if(n)goalAlignmentWarnings.push(`AI 초안이 없던 장기목표 ${n}개는 상담일지를 바탕으로 규칙 기반으로 채웠습니다.`)}}
    }
@@ -4620,9 +4628,9 @@ async function runLocalAICore(mode,{skipChecks=false}={}){
    {const picked=Array.isArray(target.carry?.long),n=ensureEvidenceGoalDrafts(plan,target);if(n)reviewNotes.push(`AI 초안이 없어 목표 ${n}개를 프로그램의 기본 틀 문장으로 채웠음. 회원 상황에 맞게 다시 써야 함.`);if(n)goalAlignmentWarnings.push(picked?`고른 장기목표 외 빈칸 ${n}개를 체크한 상담일지에 근거가 있는 영역의 목표로 채웠습니다.`:`상담일지에 근거가 있는 영역의 목표 ${n}개를 더했습니다.`)}
    flagInterpretations(plan,[target.ability||'',target.abilityLevel==='낮음'?'인지기능 저하 인지 저하 인지기능이 낮음':'',...noteSelection(target).used.map(x=>x.n.body)].join('\n'));
    improvePlanServiceDetails(plan);
-   if(groundPlan(plan,groundCtx(target,[target.plan])))backfillGoals(plan,target); // v3.21.55: 다른 회원·예시의 사실 빼기
+   {const gone=groundPlan(plan,groundCtx(target,[target.plan]));if(gone){const nb=backfillGoals(plan,target);reviewNotes.push(`AI 목표 ${gone}개에 이 회원 기록에 없는 내용이 있어 뺐음${nb?`. 빈 자리 ${nb}개는 프로그램의 규칙 기반 목표로 채웠으므로 회원 상황에 맞게 다시 써야 함`:''}.`)}} // v3.21.55: 다른 회원·예시의 사실 빼기
    extractPlanModels(plan,target);applyMainModel(plan,planModelUsed);plan.appliedModel=practiceModelId(planModelUsed)||mainModelOfPlan(plan);planModelUsed=plan.appliedModel;
-   {const fresh={strength:[...plan.strength],weakness:[...plan.weakness]};carryStrengths(target.plan,plan);applyCarrySW(target,plan,fresh);fillSWBlanks(target,plan,fresh)}carryNeeds(target.plan,plan);target.plan=plan;
+   {const fresh={strength:[...plan.strength],weakness:[...plan.weakness]};if(carryStrengths(target.plan,plan)&&!target.carry){const lost=[...fresh.strength,...fresh.weakness].map(x=>clean(str(x))).filter(x=>x&&![...plan.strength,...plan.weakness].some(y=>clean(y)===x));if(lost.length)aiFormatNotes.push('강점·약점: 1년 유지 규칙으로 지난 계획서의 것을 이어 썼음. AI가 이번에 새로 쓴 것('+lost.join(' / ')+')은 넣지 않았음 — 바꾸려면 강점·약점 칸의 ‘수정’을 누르세요.')}applyCarrySW(target,plan,fresh);fillSWBlanks(target,plan,fresh)}carryNeeds(target.plan,plan);target.plan=plan;
    // 계획서만 다시 작성한 경우, 같은 계획을 평가 중인 평가서 목표에도 바로 반영한다(기존 계획 평가 모드는 제외).
    // (계획서만 작성: 평가서 연결은 마지막 반영 단계(commitAIDocuments)에서 한다)
   }else{
@@ -4655,8 +4663,8 @@ async function runLocalAICore(mode,{skipChecks=false}={}){
   const modelLine=(mode==='both'||mode==='plan-eval')?`적용 모델: ${practiceModelName(planModelUsed)||'-'}(계획) / ${practiceModelName(evaluationModelUsed)||'-'}(평가)`:`적용 모델: ${practiceModelName(mode==='eval'?evaluationModelUsed:planModelUsed)||'-'}`;
   aiAbort=null;aiMetaText=metaLine(meta)+' · '+modelLine+(clinicalMeta?' · '+clinicalMeta:'')+(proMeta?' · '+proMeta:'');persist();setAIProgress('AI '+label+' 초안 생성 완료. 담당자가 상담 원문과 대조해야 합니다.',100);
   aiWorking=false;document.body.classList.remove('busy');state.view=mode==='eval'?'evaluation':'plan';paint();
-  alert(label+' 초안을 작성했습니다.'+(mode==='both'?' (과거 평가를 먼저 작성하고 차기 계획을 표시합니다)':mode==='plan-eval'?' (계획서를 쓰고 이어서 그 계획서의 평가서를 썼습니다)':'')+'\n'+aiMetaText+(SHOW_WARNINGS&&goalAlignmentWarnings.length?'\n\n[목표 연결 검토]\n'+goalAlignmentWarnings.join('\n'):'')+(SHOW_WARNINGS?'\n노란색 칸(확인 필요)과 사전·사후 지표를 반드시 확인하세요.':'')+(reviewNotes.length?'\n\n[검토 의견 — 상담 원문과 대조할 내용]\n'+reviewNotes.map(x=>'- '+x).join('\n'):''));
-   if(reviewNotes.length){const live2=state.members.find(x=>x.id===currID);if(live2){live2.aiReviewNotes={date:todayStr(),mode,notes:reviewNotes.slice()};persist()}}
+  alert(label+' 초안을 작성했습니다.'+(mode==='both'?' (과거 평가를 먼저 작성하고 차기 계획을 표시합니다)':mode==='plan-eval'?' (계획서를 쓰고 이어서 그 계획서의 평가서를 썼습니다)':'')+'\n'+aiMetaText+(goalAlignmentWarnings.length?'\n\n[프로그램이 AI 글을 고치거나 채운 곳 — 확인하세요]\n'+[...new Set(goalAlignmentWarnings)].map(x=>'- '+x).join('\n'):'')/* v3.23.9: 숨기던 안내를 늘 보여 줌 */+(SHOW_WARNINGS?'\n노란색 칸(확인 필요)과 사전·사후 지표를 반드시 확인하세요.':'')+(reviewNotes.length?'\n\n[검토 의견 — 상담 원문과 대조할 내용]\n'+reviewNotes.map(x=>'- '+x).join('\n'):''));
+   if(reviewNotes.length||goalAlignmentWarnings.length){const live2=state.members.find(x=>x.id===currID);if(live2){live2.aiReviewNotes={date:todayStr(),mode,notes:reviewNotes.slice(),changes:[...new Set(goalAlignmentWarnings)]};persist()}}
  }catch(e){
   // 복구 실패 후 해제된 엔진을 재사용하지 않는다. 기존 상담·문서 데이터는 건드리지 않는다.
   aiAbort=null;
