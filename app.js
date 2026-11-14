@@ -1,7 +1,7 @@
 'use strict';
 // v2.1: 기록 관리는 서버 없이 동작. AI는 사용자가 동의한 경우에만 라이브러리·모델을 외부에서 내려받음.
 const KEY='sehuim_rehab_offline_v1';
-const APP_RELEASE='3.24.0-design-blue';
+const APP_RELEASE='3.24.1-design-blue';
 const $=(s,root=document)=>root.querySelector(s);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s??'').trim();
@@ -415,6 +415,7 @@ const okName=n=>n.length===3&&PII_SURNAME20.includes(n[0])&&!NAME_STOP.test(n)&&
 // v3.24.0: 가릴 이름을 넓힘. ① 담당자가 적은 ‘가릴 이름’(회원별·공통)은 조사가 붙어도 늘 가명으로 ② 모든 성(두 글자 성 포함)+이름+호칭
 // ③ 가족·의료진을 부르는 말 뒤의 이름(‘아버지 김영호와’, ‘어머니(박순자)께서’) ④ 이름(성별·나이)(‘김민지(32세)’) ⑤ 은행·계좌 뒤 번호.
 const PII_SURNAME2='남궁|황보|제갈|선우|독고|사공|서문|동방';
+const PII_JOSA='께서|에게|한테|이가|이는|이랑|아|야|와|과|가|이|은|는|을|를|의|도|님|씨|만|랑|하고|에서|로|으로';
 const PII_SURNAME1=[...new Set(SURNAMES.replace(/남궁|황보|제갈|선우|독고/g,''))].join('');
 const PII_REL='(?:어머니|어머님|아버지|아버님|엄마|아빠|모친|부친|보호자|친모|친부|계모|계부|양모|양부|할머니|할아버지|외할머니|외할아버지|형|누나|오빠|언니|남동생|여동생|동생|형제|자매|아들|딸|배우자|남편|아내|부인|이모|고모|삼촌|외삼촌|숙모|조카|사촌|친구|애인|여자친구|남자친구|주치의|담당의|담당\s*의사|교수|원장|간호사|사회복지사|복지사|팀장|과장|센터장|선생님|선생|담임|후견인)';
 const PII_GIVEN_END=/(?:을|를|의|에|과|와|도|로|던|된|한|난|른|할|될|며|고|면|게|께|해|함|임|됨|음|히|는|가)$/;
@@ -423,8 +424,17 @@ const PII_AFTER='(?=\\s*\\)|[\\s,.·)(]|$|(?:께서|에게|한테|와|과|가|�
 const PII_HONOR='(?:\\s?(?:회원|씨|님|어머니|아버지|보호자|선생님|교수|원장|간호사|군|양)(?:은|는|이|가|을|를|과|와|의|께서|에게|도)?(?![가-힣]))';
 const PII_NAME_RES=[
  new RegExp(`(^|[^가-힣])(${PII_NAME_ANY})(?=${PII_HONOR})`,'g'),
- new RegExp(`(${PII_REL}\\s*\\(?\\s*)(${PII_NAME_ANY})${PII_AFTER}`,'g'),
- new RegExp(`(^|[^가-힣])(${PII_NAME_ANY})(?=\\s*\\(\\s*(?:남|여|\\d{1,3}\\s*세|만\\s*\\d{1,3}))`,'g')];
+ new RegExp(`(${PII_REL}\\s*[:：]?\\s*\\(?\\s*)(${PII_NAME_ANY})${PII_AFTER}`,'g'),
+ new RegExp(`(^|[^가-힣])(${PII_NAME_ANY})(?=\\s*[(,/]\\s*(?:남|여|\\d{1,3}\\s*세|만\\s*\\d{1,3}))`,'g'),
+ // v3.24.1: ‘성명: 김철수’, ‘모 김영희와’, ‘부: 김영호’, ‘회원(김철수, 남’
+ new RegExp(`((?:^|[^가-힣])(?:성명|이름|회원명|보호자명|대상자명|본인|모|부|母|父)\\s*[:：(]\\s*)(${PII_NAME_ANY})${PII_AFTER}`,'g'),
+ new RegExp(`((?:^|[^가-힣])(?:모|부|母|父)\\s+)(${PII_NAME_ANY})(?=\\s*[(,)]|$|(?:께서|에게|한테|와|과|가|씨|님)(?![가-힣]))`,'g')];
+// v3.24.1: 성과 이름 사이에 칸을 둔 경우(‘김 철수 회원’, ‘어머니 김 영희 씨’) — 회원·씨·님 같은 뚜렷한 호칭 앞에서만
+const PII_SPACED_RE=new RegExp(`(^|[^가-힣])([${PII_SURNAME20}])\\s([가-힣]{2})(?=\\s?(?:회원|씨|님)(?:은|는|이|가|을|를|과|와|의|께서|에게|도)?(?![가-힣]))`,'g');
+const PII_SPACED_STOP=/^(?:선생|사장|대리|과장|부장|차장|팀장|실장|원장|기사|여사|박사|교수|주임|반장|친구|사람|편성|정회|준회|신규|기존|모든|여러|다른|같은|어떤|해당|담당|우리)$/;
+// v3.24.1: 지번 주소(‘강남구 역삼동 123-45’)와 생년월일
+const PII_JIBUN=/((?:[가-힣]{1,10}(?:시|군|구)\s+)(?!(?:[가-힣]*(?:활동|운동|행동|이동|자동|노동|감동|충동|변동|연동|출동|작동|가동|소동|발동|진동|난동|공동|협동|아동))(?:\s|\d))[가-힣]{1,10}(?:동|리|읍|면|가))\s*\d{1,5}(?:-\d{1,5})?(?:\s*번지)?(?!\s*(?:회|번|명|개|시간|분|일|주|달|차|층|세|%|원))/g;
+const PII_BIRTH=/(?:생년월일|생일|출생일?)\s*[:：]?\s*\d{2,4}\s*[.\-/년]\s*\d{1,2}\s*[.\-/월]\s*\d{1,2}\s*일?|\d{4}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일\s*생(?![가-힣])/g;
 const PII_BANK=/((?:은행|뱅크|농협|수협|신협|우체국|새마을금고|카카오뱅크|토스뱅크|계좌|통장|입금|송금)(?:\s*번호)?\s*[:：]?\s*)\d[\d\s-]{6,24}\d/g;
 const okName2=n=>!(/[은이]$/.test(n)&&!PII_SURNAME20.includes(n[0]))&&!NAME_STOP.test(n)&&!NAME_STOP.test(n.slice(0,2))&&!PII_GIVEN_END.test(n)&&!/^(?:이번|이후|이전|이상|이하|정도|정말|조금|주로|주변|전체|전혀|한번|오늘|어제|내일|모두|다시|계속|기본|지원|지난|지금|시간|사실|성과|안내|안정|기분|정신|진료|진단|신체|연락|방문|우선|최근|최소|최대|강당|여러|전화|문자|하루|동안|식사|임시|임의|장기|단기|공부|노력|변화|유지|조절|조용|조금|장소|송년|소감|소식|표정|표현|방법|방안|방에|현재|현상|상담|상황|상태|선택|설명|교육|유튜|용돈|인사|인지|인정|인터|오후|오전|주말|주간|주의|주치|간단|간호|권유|권장|고민|고려|공기|공원)/.test(n);
 function piiCustomNames(label=''){const list=[];let m=null;try{m=member()}catch{}
@@ -434,9 +444,11 @@ function piiCustomNames(label=''){const list=[];let m=null;try{m=member()}catch{
  const seen=new Set();return list.filter(x=>!seen.has(x.name)&&seen.add(x.name)).sort((a,b)=>b.name.length-a.name.length)}
 function maskPII(text,label=''){let t=String(text??'');if(!t)return t;
  // 담당자가 적은 이름을 먼저 가린다(긴 이름부터, 조사가 붙어도 같은 가명).
- for(const {name,kind} of piiCustomNames(label))if(t.includes(name))t=t.split(name).join(piiPseudo(name,kind));
+ // v3.24.1: 두 글자 이하로 적은 이름(‘철수’)은 다른 낱말 속(‘철수세미’)을 가리지 않도록 낱말 경계에서만 바꾼다.
+ for(const {name,kind} of piiCustomNames(label))if(t.includes(name)){if(name.length>=3)t=t.split(name).join(piiPseudo(name,kind));else{const esc=name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');t=t.replace(new RegExp(`(?<![가-힣])${esc}(?=$|[^가-힣]|(?:${PII_JOSA})(?![가-힣]))`,'g'),()=>piiPseudo(name,kind))}}
  for(const [re,to] of PII_MASK)t=t.replace(re,to);
- t=t.replace(PII_BANK,(all,head)=>head+'[계좌번호]');
+ t=t.replace(PII_BANK,(all,head)=>head+'[계좌번호]').replace(PII_JIBUN,(all,head)=>head+' [번지]').replace(PII_BIRTH,'[생년월일]');
+ t=t.replace(PII_SPACED_RE,(all,pre,a,b)=>okName2(a+b)&&!PII_SPACED_STOP.test(b)?pre+piiPseudo(a+b):all);
  for(const re of PII_NAME_RES)t=t.replace(re,(all,pre,name)=>okName2(name)?pre+piiPseudo(name):all);
  return t}
 // v3.24.0: 가린 뒤에도 남은 ‘이름처럼 보이는 말’(흔한 성+두 글자+조사, 호칭 없이)을 찾아 보내기 전에 보여 준다.
@@ -1340,9 +1352,10 @@ const JUNK_ACT_HEAD=/^(?:있도록|없도록|되도록|하도록|아니면|있�
 function isJunkActName(name){const toks=String(name||'').trim().split(/\s+/);if(toks.length<2)return false;const head=toks.slice(0,-1);
  if(head.some(x=>/(?:도록|아니면|않도록|있음|없음|하며|하고|해서|하여)$/.test(x)))return true;
  return head.length===1&&JUNK_ACT_HEAD.test(head[0])}
-// v3.24.0: ‘참여하도록 안내함’·‘~하도록 권유함’처럼 권유만 한 문장은 그 활동을 실시한 기록으로 세지 않는다(실제로 한 동행·실시·참여 표현이 함께 있으면 셈).
-function adviseOnly(sentence){const t=String(sentence||'');if(!/(?:하도록|할\s*수\s*있도록|하라고|하기를|하는\s*것을|하자고|해\s*보도록|하게끔)\s*(?:안내|권유|권함|권장|권고|지도|독려|제안|격려|설명)/.test(t))return false;
- return !/(?:동행(?:함|하였|했)|실시(?:함|하였|했)|참여(?:함|하였|했)|참석(?:함|하였|했)|다녀(?:옴|왔)|진행(?:함|하였|했)|마침|마쳤)/.test(t)}
+// v3.24.0(v3.24.1 보완): ‘참여하도록 안내함’·‘~하도록 권유함’처럼 권유만 한 부분은 그 활동을 실시한 기록으로 세지 않는다.
+// 문장 전체가 아니라 권유한 마디만 뺀다(‘외래 진료에 동행하고 복약하도록 안내함’의 동행, ‘산책하도록 안내하였고 함께 산책함’의 산책은 셈).
+const ADVISE_SPAN=/(?:^|(?<=(?:하고|하였고|했고|하며|하였으며|했으며|였고|였으며|이고|고,|,)\s*))(?:(?!하고\s|하였고|했고|하며|하였으며|했으며|였고|였으며)[^.,!?。\n])*?(?:하도록|할\s*수\s*있도록|하라고|하기를|하는\s*것을|하자고|해\s*보도록|하게끔)\s*(?:안내|권유|권함|권장|권고|지도|독려|제안|격려|설명)[가-힣]*/g;
+const dropAdvice=t=>String(t||'').replace(ADVISE_SPAN,' ');
 function extractActivitiesRaw(m){
  const groups=new Map();
  const add=(rawName,ev,manual=false)=>{const canon=dictLookup(rawName);const key=groupKey(canon);let g=groups.get(key);if(!g){g={id:key,name:canon,variants:new Set(),raw:[],manual:false,freq:new Map()};groups.set(key,g)}g.variants.add(rawName);g.freq.set(canon,(g.freq.get(canon)||0)+1);g.raw.push(ev);if(manual)g.manual=true};
@@ -1350,8 +1363,8 @@ function extractActivitiesRaw(m){
   const best=new Map();
   // v3.24.0: 제목이 ‘사회적응훈련 2회기’처럼 활동 이름+회기인 기록은 그 활동 1회로 센다(본문에 활동 이름이 없어도).
   {const tt=clean(n.title||n.topic||'').replace(/^\[|\]$/g,'');const tm=/^(.{2,24}?)\s*\d{1,3}\s*(?:회기|회차|차시|회|차)\s*$/.exec(tt);
-   if(tm){const nm=clean(tm[1]);if(nm.length>=2&&!isJunkActName(nm)&&!NOT_SERVICE.test(normKey(nm)))best.set(groupKey(dictLookup(nm)),{rawName:nm,ev:{count:1,text:cut(tt,145),i,date:n.date||'',explicit:true,over:false}})}}
-  for(const full of String((clean(n.content)||clean(n.intervention)||clean(n.result))?[n.content,n.intervention,n.result].filter(clean).join('\n'):n.body).split(/(?<=[.!?。])\s+|\n+/))if(!adviseOnly(full))for(const sentence of splitSentences(full))for(const a of activitiesFromSentence(sentence)){
+   if(tm){const nm=clean(tm[1]);if(nm.length>=2&&!/\d|년|분기|월|주차|학기/.test(nm)&&!isJunkActName(nm)&&!NOT_SERVICE.test(normKey(nm)))best.set(groupKey(dictLookup(nm)),{rawName:nm,ev:{count:1,text:cut(tt,145),i,date:n.date||'',explicit:true,over:false}})}}
+  for(const full of String((clean(n.content)||clean(n.intervention)||clean(n.result))?[n.content,n.intervention,n.result].filter(clean).join('\n'):n.body).split(/(?<=[.!?。])\s+|\n+/))for(const sentence of splitSentences(dropAdvice(full)))for(const a of activitiesFromSentence(sentence)){
    a.name=a.name.replace(/^.*?(?:에\s*관한|에\s*대한|에\s*관련된|을\s*위한|를\s*위한|관한|대한)\s+(?=[^\s]+(?:교육|훈련)$)/,'').replace(/\s*(?:방법|사용법)\s*(?=(?:교육|훈련)$)/,' ').replace(/\s{2,}/g,' ').trim();
    if(isJunkActName(a.name))continue; // v3.21.48: '있도록 지원', '대상 교육', '회원과 동행' 같은 문장 조각
    if(/(?:\s|^)안내$/.test(a.name)&&!a.explicit)continue; // 1회 안내 언급은 별도 재활서비스로 자동 계수하지 않고 상담 원문에 보존
@@ -1934,7 +1947,7 @@ function inferVoiceKeys(m){
 function inferVoice(m,who){const T=VOICE_TMPL[who];const lines=inferVoiceKeys(m).map(k=>T[k]).filter(Boolean);
  return (lines.length?lines:[T.mental]).map(qLine).join('\n')}
 // v3.24.0: 자살·자해·타해 위험 표현. 대화체 칸에는 넣지 않고, 작성 완료 창 맨 위에 안전 계획 확인 안내를 띄운다.
-const RISK_RE=/죽고\s*싶|죽어\s*버리|죽을\s*(?:까|래|거)|살고\s*싶지\s*않|사라지고\s*싶|자살|자해|극단적\s*(?:선택|시도)|목숨을|목을\s*매|손목을\s*(?:긋|그)|약을\s*(?:모아|한꺼번에|많이\s*먹)|뛰어내리|해치고\s*싶|죽이고\s*싶|죽여\s*버리|타해|흉기|칼로\s*(?:위협|찌르)/;
+const RISK_RE=/살기\s*싫|그만\s*살|없어지고\s*싶|죽을\s*만큼|다\s*끝내고\s*싶|손목에?\s*(?:상처|자국)|때리고\s*싶|죽이겠|해치겠|죽고\s*싶|죽어\s*버리|죽을\s*(?:까|래|거)|살고\s*싶지\s*않|사라지고\s*싶|자살|자해|극단적\s*(?:선택|시도)|목숨을|목을\s*매|손목을\s*(?:긋|그)|약을\s*(?:모아|한꺼번에|많이\s*먹)|뛰어내리|해치고\s*싶|죽이고\s*싶|죽여\s*버리|타해|흉기|칼로\s*(?:위협|찌르)/;
 function riskNotes(m){return noteSelection(m).used.filter(({n})=>RISK_RE.test([n.title,n.body,n.content,n.result,n.counselorOpinion,n.intervention].filter(Boolean).join(' '))).map(({i})=>i+1)}
 function voiceTexts(m){
  const q=extractStatements(m);for(const k of ['member','unknown','family','paraphraseMember','paraphraseFamily'])if(Array.isArray(q[k]))q[k]=q[k].filter(x=>!RISK_RE.test(String(x?.q??x)));let memberVoice,memberVoiceSrc,familyVoice,familyVoiceSrc;

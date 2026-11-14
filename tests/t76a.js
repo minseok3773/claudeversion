@@ -54,5 +54,13 @@ const N=(date,title,content)=>({date,title,content,included:true});
   ok(!/방에만 누워|씻고 옷 갈아입는|계획 없이 쓰지/.test(p.familyVoice),'가족 대화체에 틀 문장 없음',p.familyVoice);
   ok(!/죽고 싶/.test(p.memberVoice+p.familyVoice),'위험 진술은 대화체에 없음',p.memberVoice);
   ok(t.logs.some(l=>l[0]==='alert'&&/^⚠ 체크한 상담일지\(기록 7\)에 자살·자해·타해/.test(l[1])),'완료 창 맨 위에 안전 계획 확인 안내',t.logs.filter(l=>l[0]==='alert').map(l=>l[1].slice(0,80)));}
+ console.log('[9] v3.24.1 재점검: 가명 처리 우회·오탐, 권유 마디만 빼기, 위험 표현');
+ {const t=boot(DIR,{stored:stored57()});const M=x=>t.ev('maskPII('+JSON.stringify(x)+',"")');
+  for(const [x,re] of [['회원(김철수, 남, 45세)',/^회원\(가명[A-Z], 남/],['성명: 김철수',/^성명: 가명[A-Z]$/],['모 김영희와 통화',/^모 가명[A-Z]와/],['부: 김영호',/^부: 가명[A-Z]$/],['김 철수 회원과 상담함.',/^가명[A-Z] 회원과/],['서울특별시 강남구 역삼동 123-45',/역삼동 \[번지\]$/],['생년월일 1980.01.01',/^\[생년월일\]$/]])ok(re.test(M(x)),x+' → '+M(x));
+  for(const x of ['부정적인 생각이 많음','부 정서적 지지가 필요함','이름 부르기 활동','본인 이야기를 함','서울시 마포구 활동 3회','2025년 3월 2일 생일파티','이 친구 회원과 친함','조 편성 회원','오 선생님과','활동 3회 참여'])ok(M(x)===x,'오탐 없음: '+x,M(x));
+  t.ev("member().piiNames='철수'");ok(M('철수가 왔고 철수세미를 샀음.')==='가명A가 왔고 철수세미를 샀음.'||/^가명[A-Z]가 왔고 철수세미를/.test(M('철수가 왔고 철수세미를 샀음.')),'두 글자 이름은 다른 낱말 속을 가리지 않음',M('철수가 왔고 철수세미를 샀음.'));
+  ok(t.ev(`dropAdvice("외래 진료에 동행하고 복약하도록 안내함.")`).includes('동행하고')&&!/사회적응훈련/.test(t.ev(`dropAdvice("사회적응훈련에 참여하여 스트레스를 해소할 수 있도록 안내함.")`)),'권유한 마디만 빼고 실제로 한 동행은 남김');
+  for(const x of ['요즘 살기 싫다고 말함','그만 살고 싶다고 함','없어지고 싶다고 함','손목에 상처가 있음','엄마를 때리고 싶다고 함'])ok(t.ev('RISK_RE.test('+JSON.stringify(x)+')'),'위험 표현: '+x);
+  {const st=stored57();const m=st.members[0];m.periodStart='2025-09-01';m.periodEnd='2025-12-31';m.notes=[N('2025-09-04','2025년 3분기 4차','회의함.')];const t2=boot(DIR,{stored:st});ok(!t2.ev('extractActivities(member()).some(a=>/분기/.test(a.name))'),'날짜·분기 제목은 활동으로 세지 않음')}}
  done();
 })();
