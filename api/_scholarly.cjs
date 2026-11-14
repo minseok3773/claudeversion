@@ -48,10 +48,13 @@ function fromCrossref(data){const out=[];
   const y=Number(p.published?.['date-parts']?.[0]?.[0]||p['published-print']?.['date-parts']?.[0]?.[0]||p['published-online']?.['date-parts']?.[0]?.[0]);
   out.push({title,url:'https://doi.org/'+encodeURI(doi),year:Number.isInteger(y)&&y>1900&&y<2100?String(y):'',journal:plain(Array.isArray(p['container-title'])?p['container-title'][0]:'',80),excerpt:plain(p.abstract,320),provider:'Crossref'})}
  return out}
+// v3.24.0: 재활계획에 쓸 수 없는 논문(동물 실험·분자·약물 비교 연구)은 뺀다. 사람 대상 심리사회 개입 연구만 남긴다.
+const OFF_TOPIC=/\b(?:rats?|mice|mouse|murine|rodents?|animal model|zebrafish|primates?|in vitro|knockout|transgenic|molecular|receptors?|neurons?|neuronal|gene(?:s|tic)?|genom\w*|polymorphism|biomarkers?|mri|fmri|eeg|neuroimaging|dopamine|serotonin|agonists?|antagonists?|antipsychotics?|clozapine|olanzapine|risperidone|aripiprazole|lithium|pharmacolog\w*|pharmacokinetic\w*|dose|dosing|drug trial|neuropharmacology)\b/i;
+const offTopic=r=>OFF_TOPIC.test(String(r?.title||'')+' '+String(r?.journal||''));
 // 같은 논문(주소·제목)은 한 번만, 초록이 있는 논문을 앞에 둔다.
 function merge(lists,max=6){const seen=new Set(),out=[];
  const key=r=>r.title.toLowerCase().replace(/[^a-z0-9]+/g,'');
- for(const r of lists.flat()){if(!r?.url||seen.has(r.url)||seen.has(key(r)))continue;seen.add(r.url);seen.add(key(r));out.push(r)}
+ for(const r of lists.flat()){if(!r?.url||seen.has(r.url)||seen.has(key(r))||offTopic(r))continue;seen.add(r.url);seen.add(key(r));out.push(r)}
  return out.sort((a,b)=>(b.excerpt?1:0)-(a.excerpt?1:0)).slice(0,max)}
 // AI 작성에 함께 줄 글: 논문 제목·연도·학술지와 초록 일부(영어 원문 그대로)
 const one=(r,i)=>`${i+1}. ${r.title}${r.year||r.journal?' ('+[r.year,r.journal].filter(Boolean).join(', ')+')':''}`+(r.excerpt?`\n   초록 일부: ${r.excerpt}`:'\n   (초록 없음 — 제목만 참고하고 내용·효과를 짐작하지 않는다)');
@@ -76,4 +79,4 @@ async function lookup(topics,cats,{fetcher=globalThis.fetch,timeoutMs=6500}={}){
  const records=fit(merge(await Promise.all(jobs)));
  if(!records.length)return{ok:false,reason:'unavailable',queries};
  return{ok:true,queries,records,text:asText(records),sources:records.map(r=>({title:`${r.title}${r.year?' ('+r.year+')':''} — ${r.provider}`,uri:r.url}))}}
-module.exports={TOPIC_QUERY,CAT_QUERY,queriesFor,fromEurope,fromCrossref,merge,fit,asText,lookup};
+module.exports={offTopic,TOPIC_QUERY,CAT_QUERY,queriesFor,fromEurope,fromCrossref,merge,fit,asText,lookup};
