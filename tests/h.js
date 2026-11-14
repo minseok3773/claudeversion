@@ -9,7 +9,8 @@ function boot(dir,{stored,confirmFn,ai,storage,pdf,aiStatus,guidance,research}={
  const dom=new JSDOM(html,{url:'https://claude-rehab-plan.vercel.app/',runScripts:'outside-only',pretendToBeVisual:true});
  const w=dom.window;const logs=[];const prompts=[];const guidanceCalls=[];const researchCalls=[];
  w.alert=m=>logs.push(['alert',String(m)]);
- w.confirm=m=>{logs.push(['confirm',String(m)]);return confirmFn?confirmFn(String(m)):true};
+ // v3.24.0: ‘평가 먼저 할까요?’ 확인은 예전 시험의 흐름(계획서 → 그 계획서의 평가서)을 지키려고 기본으로 ‘취소’한다(confirmFn이 있으면 그 답을 따름).
+ w.confirm=m=>{logs.push(['confirm',String(m)]);if(/실무 순서대로 ① 지금 계획서/.test(String(m))&&!(confirmFn&&confirmFn.handlesOrder))return false;return confirmFn?confirmFn(String(m)):true};
  w.print=()=>logs.push(['print']);
  w.open=(...a)=>{logs.push(['open',...a]);return null};
  w.scrollTo=()=>{};
