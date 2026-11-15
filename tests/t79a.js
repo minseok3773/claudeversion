@@ -12,7 +12,7 @@ add('2026-07-15','복약 점검','복약 점검표를 함께 확인함.');
 add('2026-09-09','복약 점검','복약 점검표를 함께 확인함.');
 const old={members:[{id:'m1',label:'회원 001',piiNames:'김철수',periodStart:'2026-05-01',periodEnd:'2026-10-31',notes,plan:{goals:[]},evaluation:{},finalizedDocs:{}}],memberId:'m1',save:true};
 async function boot(seed,fetchFn){
- const html=fs.readFileSync(path.join(ROOT,'index.html'),'utf8').replace(/<script[^>]*><\/script>/g,'');
+ const html=fs.readFileSync(path.join(ROOT,'tests','fixtures','standalone.html'),'utf8').replace(/<script[^>]*><\/script>/g,'');
  const dom=new JSDOM(html,{url:'https://example.test/',runScripts:'outside-only',pretendToBeVisual:true});
  const w=dom.window;w.confirm=()=>true;w.print=()=>{};w.scrollTo=()=>{};w.open=()=>null;
  if(fetchFn)w.fetch=fetchFn;

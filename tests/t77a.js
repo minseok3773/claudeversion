@@ -18,7 +18,7 @@ const old={members:[{id:'m1',label:'회원 001',periodStart:'2026-05-01',periodE
 const oldRaw=JSON.stringify(old);
 
 async function boot(seed){
- const html=fs.readFileSync(path.join(ROOT,'index.html'),'utf8').replace(/<script[^>]*><\/script>/g,'');
+ const html=fs.readFileSync(path.join(ROOT,'tests','fixtures','standalone.html'),'utf8').replace(/<script[^>]*><\/script>/g,'');
  const dom=new JSDOM(html,{url:'https://example.test/logs.html',runScripts:'outside-only',pretendToBeVisual:true});
  const w=dom.window;w.confirm=()=>true;w.print=()=>{};
  w.sessionStorage.setItem('lf_step','3'); for(const [k,v] of Object.entries(seed||{}))w.localStorage.setItem(k,v);

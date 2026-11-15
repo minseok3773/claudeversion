@@ -6,16 +6,18 @@
 (function(){
 const OLD_KEY='sehuim_rehab_offline_v1';
 const SHEET_KEY='rehab_logsheet_v1';
-const RELEASE='3.26.1';
+const RELEASE='3.27.0';
 
 // 이전 화면(app.js NEED_AREAS)과 같은 12개 영역. 거주환경의 '시설·방에'는 일지마다 나와 뺐다.
+// v3.27.0: 한국어 감정 단어 목록(vendor/emotion-ko.js, CC0)이 있으면 '정서' 영역 낱말에 더한다.
+function withEmotion(re){const st=(typeof window!=='undefined'&&window.EmotionKo&&Array.isArray(window.EmotionKo.stems))?window.EmotionKo.stems.filter(x=>/^[가-힣]{2,}$/.test(x)):[];return st.length?new RegExp(re.source+'|'+st.join('|')):re}
 const AREAS=[
  {id:'housing',name:'거주환경',re:/집|퇴소|자립|(?<!특)이사(?!항)|거주|살고|살래|기숙/},
  {id:'family',name:'가족관계',re:/엄마|어머니|아빠|아버지|부모|가족|동생|자녀|아들|딸|할머니|할아버지|남편|아내|보호자|(?<![는던은]\s?)(?:형|누나|언니|오빠)(?!식|태|편|성)/},
  {id:'sleep',name:'수면',re:/잠을|잠이|잠은|잠도|수면|불면|못\s*자|잘\s*자|깨요|깨서|졸려|졸리/},
  {id:'med',name:'복약',re:/(?:^|[^가-힣]|먹는\s?)약(?:을|이|은|도|\s|먹|$)|복약|복용|부작용|투약/},
  {id:'health',name:'신체 건강',re:/아프|아파|통증|병원|몸이|몸은|건강|체중|몸무게|다이어트|피곤|식사|혈당|당뇨|군것질|진료/},
- {id:'mental',name:'정서',re:/환청|목소리|무서|불안|우울|짜증|화가|화나|답답|힘들|외롭|슬퍼|죽고|걱정|스트레스|기분|정서/},
+ {id:'mental',name:'정서',re:withEmotion(/환청|목소리|무서|불안|우울|짜증|화가|화나|답답|힘들|외롭|슬퍼|죽고|걱정|스트레스|기분|정서/)},
  {id:'work',name:'취업·일',re:/일하|일을|취업|직장|알바|돈 벌|돈을 벌|일자리|출근|회사|직업/},
  {id:'money',name:'금전',re:/돈(?!을?\s*벌)|용돈|담배값|저축|빚|통장|월급|생활비|만원|금전/},
  {id:'relation',name:'대인관계',re:/친구|사람들|동료|싸우|싸워|관계|연락|무시|놀려|다른 회원|대인/},
@@ -97,11 +99,14 @@ function recommend(n){
 }
 
 // ---------- 저장 ----------
+// 기존 화면(app.js)의 'AI 자동작성' 안에 넣을 때는 HOST가 회원 자료를 건네주고, 양식에 넣기도 HOST가 저장한다.
+let HOST=null,MEM_SHEET=null;
 const store={
- read(key){try{return localStorage.getItem(key)}catch{return null}},
- write(key,v){try{localStorage.setItem(key,v);return true}catch{return false}}
+ read(key){if(HOST&&key===SHEET_KEY&&!HOST.canSave())return MEM_SHEET;try{return localStorage.getItem(key)}catch{return null}},
+ write(key,v){if(HOST&&key===SHEET_KEY&&!HOST.canSave()){MEM_SHEET=v;return true}try{localStorage.setItem(key,v);return true}catch{return false}}
 };
 function readOld(){
+ if(HOST){const o=HOST.getOld();return Array.isArray(o?.members)?o:null}
  const raw=store.read(OLD_KEY);if(!raw)return null;
  try{const o=JSON.parse(raw);return Array.isArray(o?.members)?o:null}catch{return null}
 }
@@ -139,7 +144,7 @@ function defaultPeriod(m){
  const ds=(m.notes||[]).map(n=>n.date).filter(isDate).sort();if(!ds.length)return['',''];
  const end=ds[ds.length-1];return[addMonths(end,-6),end];
 }
-function periodOf(m){const ms=msheet(m.id);if(!ms.periodStart&&!ms.periodEnd){const [s,e]=defaultPeriod(m);ms.periodStart=s;ms.periodEnd=e}return[ms.periodStart,ms.periodEnd]}
+function periodOf(m){if(HOST&&(m.periodStart||m.periodEnd))return [m.periodStart||'',m.periodEnd||''];const ms=msheet(m.id);if(!ms.periodStart&&!ms.periodEnd){const [s,e]=defaultPeriod(m);ms.periodStart=s;ms.periodEnd=e}return[ms.periodStart,ms.periodEnd]}
 function entriesOf(m){
  const [s,e]=periodOf(m);const ms=msheet(m.id);
  return (m.notes||[]).map((n,i)=>({n,i,date:clean(n.date)})).filter(x=>inPeriod(x.date,s,e)).sort((p,q)=>p.date.localeCompare(q.date)||p.i-q.i).map(x=>{
@@ -151,7 +156,7 @@ function entriesOf(m){
 function persistEntry(m,ent){const ms=msheet(m.id);ms.notes[ent.key]={rows:ent.rows.map(normRow),confirmed:ent.confirmed,updatedAt:new Date().toISOString()};saveSheet()}
 
 function optionList(list,sel){return list.map(x=>`<option value="${esc(x.id)}"${x.id===sel?' selected':''}>${esc(x.name)}</option>`).join('')}
-function renderMembers(){
+function renderMembers(){if(!$('#lfMember'))return;
  const sel=$('#lfMember');const ms=members();
  sel.innerHTML=ms.map(m=>`<option value="${esc(m.id)}"${m.id===S.memberId?' selected':''}>${esc(m.label||'회원')}</option>`).join('');
 }
@@ -209,7 +214,7 @@ function stepStatus(m){
  return st;
 }
 function guideHidden(){try{return localStorage.getItem('lf_guide_hidden')==='1'}catch{return false}}
-function renderGuide(m){
+function renderGuide(m){if(!$('#lfGuide'))return;
  const el=$('#lfGuide');if(!el)return;
  if(S.step===1&&m){el.hidden=true;return}
  const steps=`<ol class="lf-howto">
@@ -230,17 +235,17 @@ function render(){
  // ④~⑦ 단계 화면은 log-steps.js가 그린다.
  document.querySelectorAll('[data-step]').forEach(b=>{const on=Number(b.dataset.step)===S.step;b.classList.toggle('now',on);if(on)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current')});
  const v3=$('#lfView3'),vx=$('#lfViewX');
- document.body.classList.toggle('lf-simple',S.step===1);
- if(S.step!==3&&m&&window.LogSteps){S.memberId=m.id;renderMembers();const [s,e]=periodOf(m);$('#lfStart').value=s;$('#lfEnd').value=e;S.ents=entriesOf(m);v3.hidden=true;vx.hidden=false;window.LogSteps.render(S.step);$('#lfPrint').innerHTML=window.LogSteps.printHtml?window.LogSteps.printHtml(S.step):'';renderGuide(m);return}
+ (HOST?$('.lf-embed'):document.body)?.classList.toggle('lf-simple',S.step===1);
+ if(S.step!==3&&m&&window.LogSteps){S.memberId=m.id;renderMembers();const [s,e]=periodOf(m);if($('#lfStart')){$('#lfStart').value=s;$('#lfEnd').value=e}S.ents=entriesOf(m);v3.hidden=true;vx.hidden=false;window.LogSteps.render(S.step);if($('#lfPrint'))$('#lfPrint').innerHTML=window.LogSteps.printHtml?window.LogSteps.printHtml(S.step):'';renderGuide(m);return}
  v3.hidden=false;vx.hidden=true;vx.innerHTML='';
  if(!m){$('#lfNotes').innerHTML=`<div class="lf-empty"><h2>회원 기록을 찾지 못했습니다</h2><p><a class="lf-btn primary" href="forms.html">양식 보기·인쇄 화면에서 회원·상담일지 넣기 →</a></p><p>그 화면에서 ‘이 브라우저에 저장’을 켜 두면 여기서 바로 읽습니다. 다른 컴퓨터라면 위의 ‘백업 파일 불러오기’로 백업 파일(평문 또는 암호화)을 여세요.</p><p>이 화면은 상담일지를 고치지 않고 읽기만 합니다. 계획서·평가서는 ⑦에서 ‘양식에 넣기’를 누를 때만 들어갑니다.</p></div>`;$('#lfSummary').innerHTML='';renderMembers();renderGuide(null);return}
  S.memberId=m.id;renderMembers();
- const [s,e]=periodOf(m);$('#lfStart').value=s;$('#lfEnd').value=e;
+ const [s,e]=periodOf(m);if($('#lfStart')){$('#lfStart').value=s;$('#lfEnd').value=e}
  const ents=entriesOf(m);S.ents=ents;
  $('#lfNotes').innerHTML=ents.length?ents.map(noteCard).join(''):`<div class="lf-empty"><p>이 기간(${esc(s||'처음')} ~ ${esc(e||'끝')})에 날짜가 있는 상담일지가 없습니다. 기간을 바꾸거나 이전 화면에서 일지 날짜를 확인하세요.</p></div>`;
  const sum=summarize(ents,s);
  $('#lfSummary').innerHTML=summaryHtml(sum,ents,false);
- $('#lfPrint').innerHTML=printHtml(m,s,e,ents,sum);
+ if($('#lfPrint'))$('#lfPrint').innerHTML=printHtml(m,s,e,ents,sum);
  renderGuide(m);
 }
 function today(){const d=new Date();const z=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`}
@@ -255,7 +260,7 @@ function printHtml(m,s,e,ents,sum){
 
 // ---------- 동작 ----------
 function entFrom(el){const card=el.closest('.lf-card');if(!card)return null;return S.ents?.[Number(card.dataset.idx)]||null}
-function onChange(ev){
+function onChange(ev){if(HOST&&!ev.target?.closest?.('.lf-embed'))return;
  const t=ev.target;
  if(t.id==='lfMember'){S.memberId=t.value;render();return}
  if(t.id==='lfStart'||t.id==='lfEnd'){const m=cur();if(!m)return;const ms=msheet(m.id);ms.periodStart=$('#lfStart').value;ms.periodEnd=$('#lfEnd').value;
@@ -275,8 +280,8 @@ function refreshCard(ent){const m=cur();const idx=S.ents.indexOf(ent);const card
  const active=document.activeElement;const keep=active&&card&&card.contains(active)?{row:active.closest('.lf-row')?.dataset.row,f:active.dataset.f,pos:active.selectionStart}:null;
  ent.saved=true;if(card)card.outerHTML=noteCard(ent,idx);
  if(keep?.f){const el=document.querySelector(`.lf-card[data-idx="${idx}"] .lf-row[data-row="${keep.row}"] [data-f="${keep.f}"]`);if(el){el.focus();try{if(keep.pos!=null)el.setSelectionRange(keep.pos,keep.pos)}catch{}}}
- const [s,e]=periodOf(m);const sum=summarize(S.ents,s);$('#lfSummary').innerHTML=summaryHtml(sum,S.ents,false);$('#lfPrint').innerHTML=printHtml(m,s,e,S.ents,sum);renderGuide(m)}
-function onClick(ev){
+ const [s,e]=periodOf(m);const sum=summarize(S.ents,s);$('#lfSummary').innerHTML=summaryHtml(sum,S.ents,false);if($('#lfPrint'))$('#lfPrint').innerHTML=printHtml(m,s,e,S.ents,sum);renderGuide(m)}
+function onClick(ev){if(HOST&&!ev.target?.closest?.('.lf-embed'))return;
  const st=ev.target.closest('[data-step]');if(st){S.step=Number(st.dataset.step);try{sessionStorage.setItem('lf_step',String(S.step))}catch{}render();window.scrollTo(0,0);return}
  const b=ev.target.closest('[data-act]');if(!b)return;const act=b.dataset.act;const m=cur();
  if(act==='print'){window.print();return}
@@ -295,7 +300,7 @@ function onClick(ev){
  if(act==='row-del'){const j=Number(b.closest('.lf-row')?.dataset.row);if(ent.rows.length>1&&Number.isInteger(j)){ent.rows.splice(j,1);ent.confirmed=false;persistEntry(m,ent);refreshCard(ent)}return}
  if(act==='reset'){delete msheet(m.id).notes[ent.key];saveSheet();render();return}
 }
-function onInput(ev){const t=ev.target;if(t.tagName==='INPUT'&&(t.dataset.f==='act'||t.dataset.f==='voice')){const ent=entFrom(t);const row=t.closest('.lf-row');if(!ent||!row)return;const r=ent.rows[Number(row.dataset.row)];if(!r)return;r[t.dataset.f]=t.value;
+function onInput(ev){if(HOST&&!ev.target?.closest?.('.lf-embed'))return;const t=ev.target;if(t.tagName==='INPUT'&&(t.dataset.f==='act'||t.dataset.f==='voice')){const ent=entFrom(t);const row=t.closest('.lf-row');if(!ent||!row)return;const r=ent.rows[Number(row.dataset.row)];if(!r)return;r[t.dataset.f]=t.value;
  if(ent.confirmed){ent.confirmed=false;persistEntry(cur(),ent);refreshCard(ent);return}persistEntry(cur(),ent)}}
 
 async function readFileText(f){if(f.text)return f.text();return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result));r.onerror=()=>rej(r.error);r.readAsText(f)})}
@@ -344,15 +349,21 @@ function desktopShortcut(){
  dlg.querySelector('[data-close]').addEventListener('click',()=>dlg.close());
  dlg.querySelector('[data-install]')?.addEventListener('click',async()=>{const e=installEvt;installEvt=null;dlg.close();if(!e)return;try{await e.prompt()}catch{}});
  if(dlg.showModal)dlg.showModal();else dlg.setAttribute('open','')}
+let listening=false;
+function listen(){if(listening)return;listening=true;document.addEventListener('change',onChange);document.addEventListener('click',onClick);document.addEventListener('input',onInput)}
 function init(){
+ if(!document.getElementById('lfView3'))return; // 기존 화면에 넣을 때는 mount()가 시작한다.
+ {const v=document.getElementById('lfVer');if(v)v.textContent='v'+RELEASE}
  S.old=readOld();S.sheet=readSheet();S.memberId=S.old?.memberId||'';
  try{const v=Number(sessionStorage.getItem('lf_step'));if(v===1||(v>=3&&v<=7))S.step=v}catch{}
  if(!S.old)notice('');
- document.addEventListener('change',onChange);document.addEventListener('click',onClick);document.addEventListener('input',onInput);
+ listen();
  window.addEventListener('storage',ev=>{if(ev.key===OLD_KEY&&!S.fromBackup){S.old=readOld();render()}if(ev.key===SHEET_KEY){S.sheet=readSheet();render()}});
  render();
 }
-window.LogFirst={AREAS,KINDS,AREA_NAME,KIND_NAME,COUNTS,RISK_RE,recommend,kindOf,quotes,sentences,noteKey,noteText,summarize,addMonths,normRow,RELEASE,_state:S,
+// host = {getOld():{members,memberId}, canSave():bool, commit(memberId, fn(memberObj)):결과, navigate(view)}
+function mount(host){const first=!HOST;HOST=host;S.old=readOld();if(first){S.sheet=readSheet();S.step=1}S.memberId=S.old?.memberId||'';listen();render()}
+window.LogFirst={mount,host:()=>HOST,AREAS,KINDS,AREA_NAME,KIND_NAME,COUNTS,RISK_RE,recommend,kindOf,quotes,sentences,noteKey,noteText,summarize,addMonths,normRow,RELEASE,_state:S,
  cur,members,msheet,saveSheet,notice,esc,clean,isDate,today,periodOf,entriesOf,render,readOld,OLD_KEY,store,goStep(n){S.step=n;try{sessionStorage.setItem('lf_step',String(n))}catch{}render();try{window.scrollTo(0,0)}catch{}}};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();

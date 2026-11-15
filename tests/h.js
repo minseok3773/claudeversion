@@ -2,10 +2,10 @@
 const {JSDOM}=require('jsdom');const fs=require('fs');const path=require('path');
 const KEY='sehuim_rehab_offline_v1';
 function fakeResponse(data,status=200){const text=typeof data==='string'?data:JSON.stringify(data);return{ok:status>=200&&status<300,status,text:async()=>text,json:async()=>JSON.parse(text),headers:{get:()=>null}}}
-function boot(dir,{stored,confirmFn,ai,storage,pdf,aiStatus,guidance,research}={}){
+function boot(dir,{stored,confirmFn,ai,storage,pdf,aiStatus,guidance,research,embed}={}){
  // v3.23.8: 예전 시험은 Gemini 단계별 요청을 살핀다. Claude와 같은 요청문 1회 방식은 storage에 rehab_gemini_oneshot_v1:'on'을 넣어 시험한다.
  storage={rehab_gemini_oneshot_v1:'off',...(storage||{})};
- let html=fs.readFileSync(path.join(dir,'forms.html'),'utf8').replace('<script src="app.js" defer></script>','');
+ let html=fs.readFileSync(path.join(dir,'index.html'),'utf8').replace('<script src="app.js" defer></script>','');
  const dom=new JSDOM(html,{url:'https://claude-rehab-plan.vercel.app/',runScripts:'outside-only',pretendToBeVisual:true});
  const w=dom.window;const logs=[];const prompts=[];const guidanceCalls=[];const researchCalls=[];
  w.alert=m=>logs.push(['alert',String(m)]);
@@ -30,6 +30,8 @@ function boot(dir,{stored,confirmFn,ai,storage,pdf,aiStatus,guidance,research}={
  if(stored)w.localStorage.setItem(KEY,JSON.stringify(stored));
  for(const f of ['hwp-paste.js','doctor-letter.js','pro-knowledge.js','document-check.js']){const hp=path.join(dir,f);if(fs.existsSync(hp))w.eval(fs.readFileSync(hp,'utf8'))}
  if(guidance!==undefined)w.__guidance=guidance;
+ // v3.27.0: embed:true면 'AI 자동작성' 안의 새 자동 작성(log-first.js 등)도 함께 올린다.
+ if(embed)for(const f of ['pii-core.js','log-steps.js','log-first.js'])w.eval(fs.readFileSync(path.join(dir,f),'utf8'));
  const src=fs.readFileSync(path.join(dir,'app.js'),'utf8')+'\n;window.__ev=(s)=>eval(s);';
  w.eval(src);
  const ev=s=>w.__ev(s);
