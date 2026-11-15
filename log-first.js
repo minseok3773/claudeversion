@@ -64,7 +64,10 @@ function kindOf(list,topic){
  if(advised.length||RE_ADVISE.test(all))return 'advise';
  return 'other';
 }
-function shortAct(topic,list){const t=clean(topic);if(t)return t.slice(0,60);const s=clean(list[0]||'');return s.length>60?s.slice(0,58)+'…':s}
+// 한 일: 일지에서 실제로 한 일을 적은 첫 문장(따옴표 말은 뺌). 없으면 상담주제.
+function shortAct(topic,list){const strip=x=>clean(String(x||'').replace(/["“][^"”\n]*["”]\s*(?:라고|이라고)?\s*(?:말함|말했음|호소함|함)?\.?/g,''));
+ const pick=list.map(strip).find(x=>x.length>4&&(RE_DO.test(x)||RE_JOIN.test(x)||RE_REFUSE.test(x)||RE_ADVISE.test(x)))||'';
+ const t=clean(topic);const s=pick||(t?'':strip(list[0]||''));const out=s||t;return out.length>80?out.slice(0,78)+'…':out}
 
 // 상담일지 한 건 → 추천 줄 목록(최대 3줄).
 function recommend(n){
@@ -86,7 +89,7 @@ function recommend(n){
   const mine=qs.filter(q=>!used.has(q)&&r.area!=='etc'&&AREAS.find(a=>a.id===r.area).re.test(q));mine.forEach(q=>used.add(q));
   // 첫 줄(주된 영역)의 구분은 그 일지의 지원 문장 전체로 정한다(예: ‘이완 호흡을 함께 연습함’은 정서 낱말이 없어도 정서 상담의 실시).
   const kind=kindOf(i===0?deeds:r.list,topic);
-  return{area:r.area,kind,act:shortAct(topic,r.list),voice:mine.join(' / '),risk:r.list.some(s=>RISK_RE.test(s)),sick:kind==='refuse'&&RE_SICK.test(text)};
+  return{area:r.area,kind,act:shortAct(topic,i===0?[...r.list,...deeds]:r.list),voice:mine.join(' / '),risk:r.list.some(s=>RISK_RE.test(s)),sick:kind==='refuse'&&RE_SICK.test(text)};
  });
  const rest=qs.filter(q=>!used.has(q));if(rest.length)out[0].voice=[out[0].voice,...rest].filter(Boolean).join(' / ');
  if(RISK_RE.test(text)&&!out.some(r=>r.risk))out[0].risk=true;
@@ -124,7 +127,7 @@ function summarize(entries,start){
 }
 
 // ---------- 화면 ----------
-const S={old:null,fromBackup:false,sheet:emptySheet(),memberId:'',saveOk:true};
+const S={old:null,fromBackup:false,sheet:emptySheet(),memberId:'',saveOk:true,step:3};
 const $=s=>document.querySelector(s);
 function members(){return (S.old?.members||[]).filter(m=>m&&m.id)}
 function cur(){return members().find(m=>m.id===S.memberId)||members()[0]||null}
@@ -152,6 +155,7 @@ function renderMembers(){
  const sel=$('#lfMember');const ms=members();
  sel.innerHTML=ms.map(m=>`<option value="${esc(m.id)}"${m.id===S.memberId?' selected':''}>${esc(m.label||'회원')}</option>`).join('');
 }
+function goalChip(area){const m=cur();const gs=(m&&S.sheet.members[m.id]?.goals)||[];const i=gs.findIndex(g=>g.area===area);return i>=0?`<span class="lf-goalchip">목표 ${i+1} 연결</span>`:''}
 function noteCard(ent,idx){
  const t=clean(ent.note.topic||ent.note.title)||'(상담주제 없음)';
  const rows=ent.rows.map((r,j)=>`
@@ -161,6 +165,7 @@ function noteCard(ent,idx){
    <label class="lf-f lf-act">한 일<input data-f="act" value="${esc(r.act)}" maxlength="200"></label>
    <label class="lf-f lf-voice">회원 말<input data-f="voice" value="${esc(r.voice)}" maxlength="400" placeholder="일지에 따옴표로 적힌 말만"></label>
    <div class="lf-flags">
+    ${goalChip(r.area)}
     <label class="lf-check"><input type="checkbox" data-f="sick"${r.sick?' checked':''}> 건강 사유</label>
     <label class="lf-check${r.risk?' on':''}"><input type="checkbox" data-f="risk"${r.risk?' checked':''}> 위험 확인</label>
     ${ent.rows.length>1?`<button class="lf-link" data-act="row-del">줄 삭제</button>`:''}
@@ -191,6 +196,11 @@ function summaryHtml(sum,ents,forPrint){
 }
 function render(){
  const m=cur();
+ // ④~⑦ 단계 화면은 log-steps.js가 그린다.
+ document.querySelectorAll('[data-step]').forEach(b=>{const on=Number(b.dataset.step)===S.step;b.classList.toggle('now',on);if(on)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current')});
+ const v3=$('#lfView3'),vx=$('#lfViewX');
+ if(S.step!==3&&m&&window.LogSteps){S.memberId=m.id;renderMembers();const [s,e]=periodOf(m);$('#lfStart').value=s;$('#lfEnd').value=e;S.ents=entriesOf(m);v3.hidden=true;vx.hidden=false;window.LogSteps.render(S.step);$('#lfPrint').innerHTML=window.LogSteps.printHtml?window.LogSteps.printHtml(S.step):'';return}
+ v3.hidden=false;vx.hidden=true;vx.innerHTML='';
  if(!m){$('#lfNotes').innerHTML=`<div class="lf-empty"><h2>회원 기록을 찾지 못했습니다</h2><p>이전 화면에서 ‘이 브라우저에 저장’을 켜 두었다면 여기서 바로 읽습니다. 꺼져 있거나 다른 컴퓨터라면 ‘백업 파일 불러오기’로 백업 파일(평문 또는 암호화)을 여세요.</p><p>이 화면은 이전 화면의 기록을 읽기만 하고 바꾸지 않습니다.</p></div>`;$('#lfSummary').innerHTML='';renderMembers();return}
  S.memberId=m.id;renderMembers();
  const [s,e]=periodOf(m);$('#lfStart').value=s;$('#lfEnd').value=e;
@@ -234,6 +244,7 @@ function refreshCard(ent){const m=cur();const idx=S.ents.indexOf(ent);const card
  if(keep?.f){const el=document.querySelector(`.lf-card[data-idx="${idx}"] .lf-row[data-row="${keep.row}"] [data-f="${keep.f}"]`);if(el){el.focus();try{if(keep.pos!=null)el.setSelectionRange(keep.pos,keep.pos)}catch{}}}
  const [s,e]=periodOf(m);const sum=summarize(S.ents,s);$('#lfSummary').innerHTML=summaryHtml(sum,S.ents,false);$('#lfPrint').innerHTML=printHtml(m,s,e,S.ents,sum)}
 function onClick(ev){
+ const st=ev.target.closest('[data-step]');if(st){S.step=Number(st.dataset.step);try{sessionStorage.setItem('lf_step',String(S.step))}catch{}render();window.scrollTo(0,0);return}
  const b=ev.target.closest('[data-act]');if(!b)return;const act=b.dataset.act;const m=cur();
  if(act==='print'){window.print();return}
  if(act==='load-backup'){$('#lfBackupFile').click();return}
@@ -277,11 +288,13 @@ async function importSheet(f){
 }
 function init(){
  S.old=readOld();S.sheet=readSheet();S.memberId=S.old?.memberId||'';
+ try{const v=Number(sessionStorage.getItem('lf_step'));if(v>=3&&v<=7)S.step=v}catch{}
  if(!S.old)notice('');
  document.addEventListener('change',onChange);document.addEventListener('click',onClick);document.addEventListener('input',onInput);
  window.addEventListener('storage',ev=>{if(ev.key===OLD_KEY&&!S.fromBackup){S.old=readOld();render()}if(ev.key===SHEET_KEY){S.sheet=readSheet();render()}});
  render();
 }
-window.LogFirst={AREAS,KINDS,recommend,kindOf,quotes,sentences,noteKey,summarize,addMonths,normRow,RELEASE,_state:S};
+window.LogFirst={AREAS,KINDS,AREA_NAME,KIND_NAME,COUNTS,RISK_RE,recommend,kindOf,quotes,sentences,noteKey,noteText,summarize,addMonths,normRow,RELEASE,_state:S,
+ cur,members,msheet,saveSheet,notice,esc,clean,isDate,today,periodOf,entriesOf,render,readOld,OLD_KEY,store,goStep(n){S.step=n;try{sessionStorage.setItem('lf_step',String(n))}catch{}render();try{window.scrollTo(0,0)}catch{}}};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();

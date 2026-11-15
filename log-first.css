@@ -16,7 +16,6 @@ body{background:var(--bg);color:var(--text);font:15px/1.55 "Pretendard Variable"
 .lf-steps li span{font-weight:700}
 .lf-steps li.now{background:var(--primary);border-color:var(--primary);color:#fff}
 .lf-steps li.later{opacity:.6}
-.lf-steps li.later::after{content:"준비 중";font-size:11px;margin-left:2px}
 .lf-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;padding:10px 14px}
 .lf-bar label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
 .lf-grow{flex:1}
@@ -97,3 +96,49 @@ select:focus,input:focus{outline:2px solid var(--primary-line);border-color:var(
  .lf-print tr.un td{color:#555}
  .lf-print .lf-table tr{break-inside:avoid}
 }
+
+/* v3.25.0 ④~⑦ 단계 */
+.lf-steps li{padding:0;border:0;background:none}
+.lf-steps a,.lf-steps button{display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;background:var(--surface);border:1px solid var(--line-soft);font:inherit;font-size:13px;color:var(--muted);text-decoration:none;cursor:pointer}
+.lf-steps button.now{background:var(--primary);border-color:var(--primary);color:#fff}
+.lf-steps li.done a{opacity:.75}
+.lf-view{margin-top:12px;display:flex;flex-direction:column;gap:12px;max-width:980px}
+.lf-panel{background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;padding:14px 16px}
+.lf-panel h2{margin:0 0 6px;font-size:18px}
+.lf-panel h3{margin:0 0 8px;font-size:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.lf-panel>header{display:flex;justify-content:space-between;align-items:center}
+.lf-grid{display:grid;grid-template-columns:160px minmax(0,1fr) 120px 100px;gap:8px;margin:6px 0}
+.lf-grid .lf-wide{grid-column:span 1}
+.lf-target{margin:8px 0 0;font-size:14px;background:var(--primary-soft);border:1px solid var(--primary-line);border-radius:8px;padding:8px 10px}
+.lf-field{margin:10px 0}
+.lf-field textarea,.lf-answer{width:100%;font:inherit;font-size:14.5px;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px;resize:vertical;line-height:1.6}
+.lf-field .lf-f>span{font-weight:600;color:var(--text);font-size:13.5px}
+.lf-sents{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
+.lf-sents li{font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px 8px;border-radius:6px;background:var(--surface-2)}
+.lf-sents li.bad{background:var(--risk-soft)}
+.lf-sent{color:var(--text)}
+.lf-date-chip{font-size:12px;padding:1px 7px;border-radius:999px;background:var(--ok-soft);color:var(--ok);font-variant-numeric:tabular-nums}
+.lf-date-chip.self{background:#EEF0F3;color:var(--muted)}
+.lf-flag{font-size:12.5px;color:var(--risk);font-weight:600;margin:4px 0}
+.lf-ai{border-color:var(--primary-line)}
+.lf-engine{display:flex;gap:16px;flex-wrap:wrap;margin:6px 0 10px;font-size:14px}
+.lf-engine label{display:flex;gap:6px;align-items:center}
+.lf-send{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.lf-send pre{white-space:pre-wrap;font:inherit;font-size:12.5px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:8px;padding:10px;max-height:320px;overflow:auto}
+.lf-row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lf-code{width:220px}
+.lf-stepnav{display:flex;justify-content:space-between;gap:8px}
+.lf-verdict{font-size:12.5px;padding:2px 9px;border-radius:999px;font-weight:600}
+.lf-verdict.v-done{background:var(--ok-soft);color:var(--ok)}
+.lf-verdict.v-partial{background:var(--primary-soft);color:var(--primary)}
+.lf-verdict.v-miss{background:var(--warn-soft);color:var(--warn)}
+.lf-verdict.v-check{background:#EEF0F3;color:var(--muted)}
+.lf-calc th{text-align:left;width:180px}
+.lf-calc td{text-align:left}
+.lf-issues{margin:6px 0;padding-left:18px}
+.lf-issues li{margin:4px 0}
+.lf-issues li.warn{color:var(--risk)}
+.lf-ok{color:var(--ok)}
+.lf-goalchip{font-size:12px;padding:1px 8px;border-radius:999px;background:var(--primary-soft);color:var(--primary)}
+@media (max-width:640px){.lf-grid{grid-template-columns:1fr 1fr}.lf-grid .lf-wide{grid-column:1/-1}.lf-calc th{width:auto}}
+[hidden]{display:none!important}

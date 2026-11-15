@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>일지 정리표</title>
+<title>일지 중심 작성</title>
 <link rel="stylesheet" href="fonts/pretendard/pretendardvariable-dynamic-subset.css">
 <link rel="stylesheet" href="log-first.css?v=3.25.0">
 </head>
@@ -11,20 +11,20 @@
 <div class="lf-shell">
  <header class="lf-head">
   <div class="lf-title">
-   <h1>일지 정리표</h1>
-   <p>상담일지를 한 줄씩 정리해 계획서·평가서의 근거로 씁니다</p>
+   <h1>일지 중심 작성</h1>
+   <p>상담일지를 정리표로 바꾸고, 계획서와 평가서는 그 정리표에서만 씁니다</p>
   </div>
   <a class="lf-btn" href="./">← 이전 화면</a>
  </header>
 
  <ol class="lf-steps noprint" aria-label="작성 단계">
-  <li class="done"><span>①</span>회원 등록</li>
-  <li class="done"><span>②</span>상담일지 넣기</li>
-  <li class="now" aria-current="step"><span>③</span>일지 정리표</li>
-  <li class="later"><span>④</span>목표 고르기</li>
-  <li class="later"><span>⑤</span>계획서</li>
-  <li class="later"><span>⑥</span>평가서</li>
-  <li class="later"><span>⑦</span>최종 검토</li>
+  <li class="done"><a href="./"><span>①</span>회원 등록</a></li>
+  <li class="done"><a href="./"><span>②</span>상담일지 넣기</a></li>
+  <li><button type="button" data-step="3"><span>③</span>일지 정리표</button></li>
+  <li><button type="button" data-step="4"><span>④</span>목표 고르기</button></li>
+  <li><button type="button" data-step="5"><span>⑤</span>계획서</button></li>
+  <li><button type="button" data-step="6"><span>⑥</span>평가서</button></li>
+  <li><button type="button" data-step="7"><span>⑦</span>최종 검토</button></li>
  </ol>
 
  <section class="lf-bar noprint">
@@ -36,17 +36,18 @@
   <button class="lf-btn" data-act="load-backup">백업 파일 불러오기</button>
   <button class="lf-btn" data-act="sheet-export">정리표 백업</button>
   <button class="lf-btn" data-act="sheet-import">정리표 불러오기</button>
-  <button class="lf-btn primary" data-act="print">요약표 인쇄</button>
+  <button class="lf-btn primary" data-act="print">인쇄</button>
   <input type="file" id="lfBackupFile" accept=".json,application/json" hidden>
   <input type="file" id="lfSheetFile" accept=".json,application/json" hidden>
  </section>
 
  <div id="lfNotice" class="lf-notice" role="status" aria-live="polite"></div>
 
- <div class="lf-layout">
+ <div class="lf-layout" id="lfView3">
   <main id="lfNotes" class="lf-notes"></main>
   <aside id="lfSummary" class="lf-summary"></aside>
  </div>
+ <div id="lfViewX" class="lf-view" hidden></div>
 
  <section id="lfPrint" class="lf-print" aria-hidden="true"></section>
 </div>
@@ -58,6 +59,8 @@
   <div class="lf-dialog-btns"><button class="lf-btn" value="cancel">취소</button><button class="lf-btn primary" value="ok">열기</button></div>
  </form>
 </dialog>
+<script src="pii-core.js?v=3.25.0" defer></script>
+<script src="log-steps.js?v=3.25.0" defer></script>
 <script src="log-first.js?v=3.25.0" defer></script>
 </body>
 </html>
