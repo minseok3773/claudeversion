@@ -1,7 +1,7 @@
 'use strict';
 // v2.1: 기록 관리는 서버 없이 동작. AI는 사용자가 동의한 경우에만 라이브러리·모델을 외부에서 내려받음.
 const KEY='sehuim_rehab_offline_v1';
-const APP_RELEASE='3.26.2-design-blue';
+const APP_RELEASE='3.27.0-design-blue';
 const $=(s,root=document)=>root.querySelector(s);
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clean=s=>String(s??'').trim();
@@ -502,7 +502,7 @@ function safeImport(data){validateBackupLimits(data);const seen=new Set();const 
 // ---------- 화면 ----------
 let aiWorking=false,aiCancel=false,aiPreparing=false;
 const REF_FORM=['refTitle','refAuthor','refYear','refType','refLevel','refUrl','refBody'];let refDraft=null;
-function paint(){try{if(document.getElementById('refTitle')){refDraft={};for(const id of REF_FORM)refDraft[id]=document.getElementById(id)?.value??''}const m=member();$('#writerPicker').innerHTML=state.writerProfiles.map(w=>`<option value="${escapeHtml(w.id)}" ${w.id===writerId()?'selected':''}>${escapeHtml(w.name)}</option>`).join('');$('#writerPicker').disabled=aiWorking;$('#memberPicker').innerHTML=state.members.map(x=>`<option value="${escapeHtml(x.id)}" ${x.id===m.id?'selected':''}>${escapeHtml(x.label)}</option>`).join('');$('#memberPicker').disabled=aiWorking;$('#autosave').checked=state.save;/* v3.21.69: 메뉴를 하는 일에 따라 묶음 */const navGroups=[['기록',[['notes','상담일지 관리']]],['작성',[['ai','AI 자동작성'],['plan','재활계획서'],['evaluation','재활평가서'],['doctor','주치의편지']]],['자료·학습',[['legacy','과거 재활문서 관리'],['analysis','근거 분석'],['learning','AI 학습관리'],['references','전문자료 학습관리']]],['관리',[['backup','백업·관리']]]];$('#nav').innerHTML=navGroups.map(([g,items])=>`<div class="nav-group" role="group" aria-label="${g}"><span class="nav-group-label">${g}</span>${items.map(([id,title])=>`<button class="${state.view===id?'active':''}" data-act="navigate" data-view="${id}"${state.view===id?' aria-current="page"':''}>${title}</button>`).join('')}</div>`).join('');const html={notes:notesPage,doctor:doctorPage,legacy:legacyPage,analysis:analysisPage,ai:aiPage,plan:planPage,evaluation:evaluationPage,learning:learningPage,references:referencePage,backup:backupPage}[state.view](m);updateSavePill();$('#content').dataset.memberScope=m.id;$('#content').innerHTML=(!state.save?'<div class="alert noprint"><b>저장 꺼짐:</b> 이 브라우저에는 자동 저장되지 않습니다. 종료하기 전에 암호화 백업을 받거나 상단의 ‘이 브라우저에 저장’을 켜세요.</div>':'')+(loadWarning?`<div class="alert">${escapeHtml(loadWarning)}${persistBlocked?' <button class="btn small" data-act="unblock-save">백업 후 저장 재개</button>':''}</div>`:'')+html;if(refDraft&&document.getElementById('refTitle'))for(const id of REF_FORM){const el=document.getElementById(id);if(el&&refDraft[id]!=null)el.value=refDraft[id]}lockInputs();mountProSuggestions()}catch(e){$('#content').innerHTML=`<div class="alert"><b>화면 표시 중 오류:</b> ${escapeHtml(e.message)}<br>데이터는 메모리에 남아 있으니 백업을 먼저 내려받은 뒤 새로고침하세요.</div><button class="btn" data-act="export-enc">암호화 백업</button>`}}
+function paint(){try{if(document.getElementById('refTitle')){refDraft={};for(const id of REF_FORM)refDraft[id]=document.getElementById(id)?.value??''}const m=member();$('#writerPicker').innerHTML=state.writerProfiles.map(w=>`<option value="${escapeHtml(w.id)}" ${w.id===writerId()?'selected':''}>${escapeHtml(w.name)}</option>`).join('');$('#writerPicker').disabled=aiWorking;$('#memberPicker').innerHTML=state.members.map(x=>`<option value="${escapeHtml(x.id)}" ${x.id===m.id?'selected':''}>${escapeHtml(x.label)}</option>`).join('');$('#memberPicker').disabled=aiWorking;$('#autosave').checked=state.save;/* v3.21.69: 메뉴를 하는 일에 따라 묶음 */const navGroups=[['기록',[['notes','상담일지 관리']]],['작성',[['ai','AI 자동작성'],['plan','재활계획서'],['evaluation','재활평가서'],['doctor','주치의편지']]],['자료·학습',[['legacy','과거 재활문서 관리'],['analysis','근거 분석'],['learning','AI 학습관리'],['references','전문자료 학습관리']]],['관리',[['backup','백업·관리']]]];$('#nav').innerHTML=navGroups.map(([g,items])=>`<div class="nav-group" role="group" aria-label="${g}"><span class="nav-group-label">${g}</span>${items.map(([id,title])=>`<button class="${state.view===id?'active':''}" data-act="navigate" data-view="${id}"${state.view===id?' aria-current="page"':''}>${title}</button>`).join('')}</div>`).join('');const html={notes:notesPage,doctor:doctorPage,legacy:legacyPage,analysis:analysisPage,ai:aiPage,plan:planPage,evaluation:evaluationPage,learning:learningPage,references:referencePage,backup:backupPage}[state.view](m);updateSavePill();$('#content').dataset.memberScope=m.id;$('#content').innerHTML=(!state.save?'<div class="alert noprint"><b>저장 꺼짐:</b> 이 브라우저에는 자동 저장되지 않습니다. 종료하기 전에 암호화 백업을 받거나 상단의 ‘이 브라우저에 저장’을 켜세요.</div>':'')+(loadWarning?`<div class="alert">${escapeHtml(loadWarning)}${persistBlocked?' <button class="btn small" data-act="unblock-save">백업 후 저장 재개</button>':''}</div>`:'')+html;if(refDraft&&document.getElementById('refTitle'))for(const id of REF_FORM){const el=document.getElementById(id);if(el&&refDraft[id]!=null)el.value=refDraft[id]}lockInputs();mountProSuggestions();mountLogFirst()}catch(e){$('#content').innerHTML=`<div class="alert"><b>화면 표시 중 오류:</b> ${escapeHtml(e.message)}<br>데이터는 메모리에 남아 있으니 백업을 먼저 내려받은 뒤 새로고침하세요.</div><button class="btn" data-act="export-enc">암호화 백업</button>`}}
 // AI 작업 중에는 입력칸을 잠가 입력 유실을 막는다(중단 버튼은 동작).
 function lockInputs(){const on=aiWorking;for(const el of document.querySelectorAll('#content [data-bind],#content [data-note-check],#content [data-activity-use],#content [data-carry-long],#content [data-carry-sw],#content #carrySearch,#content #rehabModelChoice,#content #legacyHwpPaste,#content #hwpDocPaste,#content [data-psy-condition],#content #psyCustom,#content [data-doctor-field],#content #doctorHistoryTitle,#content #doctorHistoryBody,#autosave')){if(el.tagName==='TEXTAREA'||(el.tagName==='INPUT'&&/^(?:text|date|password|)$/.test(el.type)))el.readOnly=on||el.classList.contains('long-locked');else el.disabled=on}}
 // v3.21.36: 담당자 요청으로 화면·팝업의 경고 메시지를 모두 표시하지 않는다(데이터 손상·저장 실패 같은 시스템 오류만 표시).
@@ -2648,10 +2648,10 @@ function carryToggle(m,kind,key,want){const st=carryState(m),sel=st.sel[kind],ma
  st.touched[kind]=true;carryMsg('');carryShowCount(m);return true}
 // 목록 정리: 직접 입력·문구 수정·빼기 — 회원별 목록(m.bank)만 바뀌고 이전 계획서 원본과 지금 계획서는 그대로다.
 async function carryAddItem(m,kind){const label=KIND_KO[kind];
- const v=clean(await askDialog({title:label+' 직접 입력',desc:`목록에 새 ${label}을(를) 넣고 바로 고릅니다. 지금 계획서는 ‘지금 계획서에 넣기’를 눌러야 바뀝니다.`,multiline:true,confirmText:'추가'})||'');
+ const v=clean(await askDialog({title:label+' 직접 입력',desc:`목록에 새 ${josaKo(label,'을/를')} 넣고 바로 고릅니다. 지금 계획서는 ‘지금 계획서에 넣기’를 눌러야 바뀝니다.`,multiline:true,confirmText:'추가'})||'');
  if(!v)return;if(!bankOk(v)){alert('4자 이상 400자 이하로 입력해 주세요. ‘확인 필요’ 같은 문구는 넣을 수 없습니다.');return}
  if(carryItems(m)[kind].some(x=>x.key===bankKey(v))){alert('같은 문구가 이미 목록에 있습니다.');return}
- bankAdd(m,kind,v,todayStr(),todayStr());const ok=carryToggle(m,kind,bankKey(v),true);persist();refreshCarry(m);carryMsg(`${label}을(를) 목록에 넣었습니다.`+(ok?' (골라 둠)':''),true)}
+ bankAdd(m,kind,v,todayStr(),todayStr());const ok=carryToggle(m,kind,bankKey(v),true);persist();refreshCarry(m);carryMsg(`${josaKo(label,'을/를')} 목록에 넣었습니다.`+(ok?' (골라 둠)':''),true)}
 async function carryEditItem(m,kind,key){const x=carryItems(m)[kind].find(y=>y.key===key);if(!x)return;
  if(x.cur.length){alert('지금 계획서에 있는 문구는 계획서에서 직접 고쳐 주세요.');return}
  const v=clean(await askDialog({title:KIND_KO[kind]+' 문구 수정',desc:'이 목록의 문구만 바뀝니다. 이전 계획서 원본은 바뀌지 않습니다.',multiline:true,value:x.text,confirmText:'저장'})||'');
@@ -3397,7 +3397,7 @@ document.addEventListener('change',ev=>{const t=ev.target;if((t.dataset.bind||t.
  if(t.id==='refInAI'){state.refInAI=t.checked;persist();paint();return}
  if(t.id==='webSearch'){state.webSearch=t.checked;proWeb.clear();persist();paint();return} // v3.21.66: 최신 전문자료 찾기 켜기·끄기(기본 켬)
  if(t.id==='memberPicker'){if(legacyDraftMemberId===member().id&&(clean(legacyDraft?.text)||clean(legacyFormToText(legacyDraft?.type,legacyDraft?.structured?.[legacyDraft?.type])))&&!confirm('과거 문서 입력 중인 내용이 저장되지 않았을 수 있습니다. 회원을 변경하시겠습니까?')){t.value=state.memberId;return}state.memberId=t.value;legacyDraft=null;legacyDraftMemberId=null;persist();paint();return}
- if(t.id==='autosave'){if(t.checked){if(!confirm('이 브라우저에 상담·계획·평가 내용이 평문으로 저장됩니다. 공용 PC가 아니고, 기기 사용자가 본인뿐일 때만 사용하세요. 계속하시겠습니까?')){t.checked=false;return}state.save=true;lastOwnStorageValue=localStorage.getItem(KEY);flushPersist()}else{if(!confirm('브라우저에 저장된 데이터를 삭제하고 저장 기능을 끕니다. 백업을 받으셨습니까?')){t.checked=true;return}state.save=false;persistBlocked=false;loadWarning='';try{localStorage.removeItem(KEY);localStorage.removeItem(KEY+'_corrupt');lastOwnStorageValue=null}catch{}}paint();return}
+ if(t.id==='autosave'){if(t.checked){if(!confirm('이 브라우저에 상담·계획·평가 내용이 평문으로 저장됩니다. 공용 PC가 아니고, 기기 사용자가 본인뿐일 때만 사용하세요. 계속하시겠습니까?')){t.checked=false;return}state.save=true;lastOwnStorageValue=localStorage.getItem(KEY);flushPersist()}else{if(!confirm('브라우저에 저장된 데이터를 삭제하고 저장 기능을 끕니다. 백업을 받으셨습니까?')){t.checked=true;return}state.save=false;persistBlocked=false;loadWarning='';try{localStorage.removeItem(KEY);localStorage.removeItem(KEY+'_corrupt');localStorage.removeItem('rehab_logsheet_v1');lastOwnStorageValue=null}catch{}}paint();return}
  if(t.dataset.bind){setProp(member(),t.dataset.bind,t.value);if(/^notes\.\d+\./.test(t.dataset.bind)){const i=Number(t.dataset.bind.split('.')[1]);if(NOTE_FIELDS.includes(t.dataset.bind.split('.')[2]))updateNoteBody(member(),i);refreshNoteListRow(i)}if(t.dataset.bind==='plan.memberVoice')autoNeedFromVoice(member(),'member');if(t.dataset.bind==='plan.familyVoice')autoNeedFromVoice(member(),'family');persist()}});
 document.addEventListener('click',async ev=>{const b=ev.target.closest('[data-act]');if(!b)return;const action=b.dataset.act;if(aiWorking&&action!=='ai-cancel')return;if(aiDiag.busy&&/^(ai-run-|doctor-generate$)/.test(action))return;const m=member();switch(action){
 case 'navigate':state.view=b.dataset.view;if(state.view==='evaluation'&&!aiWorking)syncPlanToEval(m);paint();break;
@@ -3653,7 +3653,31 @@ async function runAiDiagnosis(){if(aiDiag.busy||aiWorking)return;
   const bad=aiDiag.steps.find(s=>s.state==='fail'&&s.key!=='research'),noWeb=aiDiag.steps.some(s=>s.key==='research'&&s.state==='fail');
   aiDiag.summary=bad?`${AI_DIAG_NAMES[bad.key]} 단계에서 막혔습니다. 위 안내대로 확인한 뒤 다시 진단해 보세요.`:'AI 자동작성을 쓸 수 있는 상태입니다.'+(noWeb?' (최신 전문자료 찾기는 안 되어 내장 요약으로 작성합니다)':'');
   aiDiag.busy=false;aiDiag.at=Date.now();paint()}}
-function aiPage(m){const sel=noteSelection(m);const busy=aiWorking;const hasOld=hasEvaluablePlan(m);const shared=sharedLegacyDocuments().length;const pref=practiceModelPreference(m.modelPreference);
+// v3.27.0: 'AI 자동작성'의 기본은 상담일지 중심 자동 작성(log-first.js·log-steps.js). 예전 방식은 아래에 접어 둔다.
+// 판정은 일지 횟수로 프로그램이 정하고, 문장마다 근거 일지 날짜를 달고, 이름을 가린 정리 내용만 보낸다.
+let aiClassicOpen=false;
+function aiPage(m){
+ if(!window.LogFirst?.mount)return aiPageClassic(m);
+ return `<h2>AI 자동작성</h2>
+ <div class="lf-embed lf-simple" id="lfEmbed">
+  <ol class="lf-steps lf-adv noprint" aria-label="자세히 고치기 단계"><li><button type="button" data-step="1" class="lf-back">← 간단히 보기</button></li><li><button type="button" data-step="3"><span>③</span>일지 정리표</button></li><li><button type="button" data-step="4"><span>④</span>목표 고르기</button></li><li><button type="button" data-step="5"><span>⑤</span>계획서</button></li><li><button type="button" data-step="6"><span>⑥</span>평가서</button></li><li><button type="button" data-step="7"><span>⑦</span>최종 검토</button></li></ol>
+  <div id="lfNotice" class="lf-notice" role="status" aria-live="polite"></div>
+  <div class="lf-layout" id="lfView3" hidden><div id="lfNotes" class="lf-notes"></div><aside id="lfSummary" class="lf-summary"></aside></div>
+  <div id="lfViewX" class="lf-view"></div>
+ </div>
+ <details class="ai-advanced ai-classic" id="aiClassic"${aiWorking||aiClassicOpen?' open':''}><summary>예전 방식으로 작성 (체크한 상담일지 · 문체 학습 · 실천모델 · 과거 문서 반영)</summary>${aiPageClassic(m)}</details>`}
+document.addEventListener('toggle',ev=>{if(ev.target?.id==='aiClassic')aiClassicOpen=ev.target.open},true);
+const lfHost={
+ getOld:()=>({members:state.members,memberId:member().id}),
+ canSave:()=>!!state.save&&!persistBlocked,
+ commit(id,fn){const i=state.members.findIndex(x=>x.id===id);if(i<0)return [];const copy=JSON.parse(JSON.stringify(state.members[i]));const done=fn(copy)||[];if(done.length){state.members[i]=normMember(copy,i);persist()}return done}
+};
+// v3.27.0: es-hangul(토스, MIT, vendor/es-hangul.min.js) — 조사 맞추기와 회원 초성 찾기. 없으면 예전 표기(을(를))로 둔다.
+function josaKo(word,pair){try{return window.EsHangul?window.EsHangul.josa(String(word),pair):word+pair.replace(/^(.+)\/(.+)$/,'$1($2)')}catch{return word+pair.replace(/^(.+)\/(.+)$/,'$1($2)')}}
+function memberMatches(label,q){q=String(q||'').replace(/\s+/g,'');if(!q)return true;const l=String(label||'').replace(/\s+/g,'');if(l.includes(q))return true;try{return /^[ㄱ-ㅎ]+$/.test(q)&&!!window.EsHangul&&window.EsHangul.getChoseong(l).includes(q)}catch{return false}}
+document.addEventListener('input',ev=>{if(ev.target?.id!=='memberSearch')return;const q=ev.target.value;const sel=$('#memberPicker');if(!sel)return;let first=null;for(const o of sel.options){const show=memberMatches(o.textContent,q);o.hidden=!show;if(show&&!first)first=o}if(q&&first&&first.value!==sel.value&&!aiWorking){sel.value=first.value;sel.dispatchEvent(new Event('change',{bubbles:true}))}});
+function mountLogFirst(){if(state.view==='ai'&&document.getElementById('lfEmbed')&&window.LogFirst?.mount)try{window.LogFirst.mount(lfHost)}catch(e){console.error(e)}}
+function aiPageClassic(m){const sel=noteSelection(m);const busy=aiWorking;const hasOld=hasEvaluablePlan(m);const shared=sharedLegacyDocuments().length;const pref=practiceModelPreference(m.modelPreference);
  return `<h2>AI 재활계획·평가 자동작성 — ${aiEngine==='claude'?'Claude':'Gemini'}</h2>${aiEngineBoxHtml(busy)}<div class="info"><b>작성자 ${escapeHtml(writer().name)}의 모든 회원에 개인 문체와 과거 문서 공통 작성기준 적용</b> · 공통 적용 과거 문서 ${shared}건 · 승인된 학습자료: 계획서 ${writerLearningRecords('plan').length}건(원본 회원 ${writerLearningSourceCount('plan')}명) / 평가서 ${writerLearningRecords('evaluation').length}건(원본 회원 ${writerLearningSourceCount('evaluation')}명). 승인된 자료에서는 문체·작성 방식만 가져오며 다른 회원의 진술·증상·활동·실적은 가져오지 않습니다. 작성자 프로필은 로그인 기능이 아닙니다.</div>
  <div class="grid"><div class="stat"><span>선택 회원</span><strong>${escapeHtml(m.label)}</strong></div><div class="stat"><span>체크 / 실제 분석 상담기록</span><strong class="count">${sel.chosen} / ${sel.used.length}건</strong></div></div>
  <p class="muted"><b>이번 AI 작성에 쓰는 상담일지 — ${escapeHtml(m.label)}:</b> ${sel.used.length?sel.used.slice(0,8).map(({n,i})=>escapeHtml((i+1)+'. '+(n.date||'날짜 미입력')+' / '+(clean(n.topic||n.title)||'제목 미입력'))).join(' · ')+(sel.used.length>8?' 외 '+(sel.used.length-8)+'건':''):'없음 (상담일지 목록에서 체크해 주세요)'}</p>
@@ -4744,6 +4768,23 @@ async function runLocalAICore(mode,{skipChecks=false}={}){
   if(e?.code==='AI_ALL_FAILED'&&confirm('AI 연결에 모두 실패했습니다.\n원인: '+String(e.message||'').split('\n').slice(1).join(' / ').replace(/^Gemini AI:\s*/,'')+'\n\n잠시 뒤(1~2분) 다시 실행하면 대부분 해결됩니다. 지금 규칙 기반으로 대신 작성할까요?\n(취소를 누르면 기존 문서는 그대로 유지됩니다)')&&state.memberId===currID&&state.members.find(x=>x.id===currID)===m)ruleFallback(m,mode);
  }
 }
+// v3.27.0: pdf.js(Mozilla, Apache-2.0, vendor/pdfjs)로 브라우저 안에서 PDF 글자만 뽑는다. 서버 판(api/pdf-extract.js)과 같은 한도·안내를 쓴다.
+const PDF_MAX_TEXT=45000,PDF_MAX_PAGES=30;
+async function pdfTextLocal(file){
+ let lib;try{lib=await import('./vendor/pdfjs/pdf.min.mjs')}catch{return null}
+ if(!lib?.getDocument)return null;
+ lib.GlobalWorkerOptions.workerSrc=new URL('vendor/pdfjs/pdf.worker.min.mjs',location.href).href;
+ const data=new Uint8Array(await file.arrayBuffer());
+ if(String.fromCharCode(...data.subarray(0,5))!=='%PDF-'){const e=Error();e.userMessage='지원하지 않는 파일입니다. 글자가 들어 있는 2MB 이하 PDF를 써 주세요.';throw e}
+ let doc;try{doc=await lib.getDocument({data,isEvalSupported:false,cMapUrl:new URL('vendor/pdfjs/cmaps/',location.href).href,cMapPacked:true,useSystemFonts:false,disableFontFace:true}).promise}
+ catch(err){const e=Error();e.userMessage=/password/i.test(String(err?.name||err?.message||''))?'암호가 걸린 PDF는 읽을 수 없습니다. 암호를 푼 파일을 써 주세요.':'PDF에서 글자를 뽑지 못했습니다. 글자를 선택할 수 있는 PDF인지 확인해 주세요.';throw e}
+ try{const pages=doc.numPages||1,out=[];
+  for(let i=1;i<=Math.min(pages,PDF_MAX_PAGES);i++){const pg=await doc.getPage(i);const tc=await pg.getTextContent();let line='';const lines=[];for(const it of tc.items){line+=it.str||'';if(it.hasEOL){lines.push(line);line=''}}if(line)lines.push(line);out.push(lines.join('\n'));if(out.join('\n\n').length>PDF_MAX_TEXT)break}
+  const raw=out.join('\n\n').replace(/\0/g,''),text=raw.slice(0,PDF_MAX_TEXT);
+  if(!text.trim()||text.replace(/\s/g,'').length<35){const e=Error();e.userMessage='뽑을 수 있는 글자가 부족합니다. 이미지로 스캔한 PDF는 자동 입력이 되지 않습니다. 글자 인식(OCR)을 한 PDF를 쓰거나 직접 입력해 주세요.';throw e}
+  return{text,pages,truncated:raw.length>PDF_MAX_TEXT||pages>PDF_MAX_PAGES,warnings:[],local:true}}
+ finally{try{await doc.destroy()}catch{}}
+}
 $('#legacyPdf')?.addEventListener('change',async ev=>{const file=ev.target.files?.[0];if(!file)return;const originalMember=member(),memberId=originalMember.id;
  try{if(!/\.pdf$/i.test(file.name)||file.type&&!/pdf/i.test(file.type))throw Error('PDF 파일만 올릴 수 있습니다.');
   if(file.size>2*1024*1024||file.size<100)throw Error('2MB 이하의 정상 PDF 파일을 써 주세요.');
@@ -4751,10 +4792,12 @@ $('#legacyPdf')?.addEventListener('change',async ev=>{const file=ev.target.files
   const existing=clean(draft.text)||clean(legacyFormToText(draft.type,draft.structured?.[draft.type]));
   if(existing&&!confirm('지금 입력 중인 과거 문서 내용을 PDF 내용으로 바꿀까요? 이미 등록한 과거 문서는 바뀌지 않습니다.'))return;
   legacyPdfMessage='PDF에서 글자를 뽑는 중입니다. 파일 크기에 따라 시간이 걸릴 수 있습니다.';paint();
-  const pdf=await pdfBase64FromFile(file);
-  const response=await fetch('/api/pdf-extract',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json','x-requested-with':'rehab-app'},body:JSON.stringify({pdf})});
-  const body=await response.json().catch(()=>({}));
-  if(!response.ok)throw Error(String(body.error||'PDF에서 글자를 뽑지 못했습니다.'));
+  // v3.27.0: PDF는 먼저 브라우저 안에서 pdf.js로 읽는다(파일이 서버로 가지 않음). 이 브라우저에서 pdf.js를 못 쓰면 예전처럼 서버에서 읽는다.
+  let body=await pdfTextLocal(file).catch(e=>e&&e.userMessage?Promise.reject(Error(e.userMessage)):null);
+  if(!body){const pdf=await pdfBase64FromFile(file);
+   const response=await fetch('/api/pdf-extract',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json','x-requested-with':'rehab-app'},body:JSON.stringify({pdf})});
+   body=await response.json().catch(()=>({}));
+   if(!response.ok)throw Error(String(body.error||'PDF에서 글자를 뽑지 못했습니다.'))}
   if(member().id!==memberId||member()!==originalMember)throw Error('PDF를 읽는 동안 선택 회원이 바뀌었습니다. 다른 회원에게 넣지 않았습니다.');
   const mapped=extractLegacyPdfDraft(body.text,draft.type);if(mapped.error)throw Error(mapped.error);
   const current=currentLegacyDraft(originalMember);current.type=mapped.type;current.title=clean(current.title)||file.name.replace(/\.pdf$/i,'');

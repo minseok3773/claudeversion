@@ -31,6 +31,15 @@ function facts(){
 const isPerf=f=>L().COUNTS.has(f.kind);
 function monthsBetween(s,e){if(!s||!e)return 0;const d=(Date.parse(e)-Date.parse(s))/86400000+1;return Math.max(d,0)/30.4375}
 function weeksBetween(s,e){if(!s||!e)return 0;const d=(Date.parse(e)-Date.parse(s))/86400000+1;return Math.max(d,0)/7}
+// v3.27.0: 목표 영역별 월별 실시·참여 횟수(Chart.js 그래프용, 화면에만)
+function monthlyCounts(){const m=L().cur();const [s,e]=L().periodOf(m);if(!s||!e)return null;const months=[];let d=s.slice(0,7);const end=e.slice(0,7);while(d<=end&&months.length<24){months.push(d);const [y,mm]=d.split('-').map(Number);d=mm===12?`${y+1}-01`:`${y}-${String(mm+1).padStart(2,'0')}`}
+ const f=facts();return{months,series:goals().map(g=>({area:g.area,label:L().AREA_NAME[g.area],target:g.per==='week'?Math.round(g.n*4.3*10)/10:g.n,data:months.map(mo=>f.filter(x=>x.area===g.area&&isPerf(x)&&String(x.date).slice(0,7)===mo).length)}))}}
+function drawCharts(){const cv=document.getElementById('lfChart');if(!cv||!window.Chart)return;const mc=monthlyCounts();if(!mc||!mc.series.length){cv.closest('.lf-chartbox')?.remove();return}
+ try{if(UI.chart){UI.chart.destroy();UI.chart=null}const pal=['#0D74CE','#18794E','#B54708'];window.Chart.defaults.font.family='"Pretendard Variable",Pretendard,"Malgun Gothic","Apple SD Gothic Neo",sans-serif';
+  UI.chart=new window.Chart(cv,{type:'bar',data:{labels:mc.months.map(x=>x.slice(5)+'월'),datasets:[...mc.series.map((g,i)=>({type:'bar',label:g.label+' 실시·참여',data:g.data,backgroundColor:pal[i%3],borderRadius:3})),...mc.series.filter(g=>g.target>0).map((g,i)=>({type:'line',label:g.label+' 목표(월 '+g.target+'회)',data:mc.months.map(()=>g.target),borderColor:pal[i%3],borderDash:[5,4],pointRadius:0,borderWidth:1.5,fill:false}))]},
+   options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12}}},scales:{y:{beginAtZero:true,ticks:{precision:0},title:{display:true,text:'횟수'}}}}})}catch(e){console.error(e)}}
+// v3.27.0: 다시 자동 작성했을 때 이전 글과 바뀐 곳(jsdiff, BSD-3, vendor/diff.min.js)
+function diffHtml(before,after){if(!window.Diff?.diffWordsWithSpace)return esc(after).replace(/\n/g,'<br>');return window.Diff.diffWordsWithSpace(before,after).map(p=>p.added?`<ins class="lf-ins">${esc(p.value)}</ins>`:p.removed?`<del class="lf-del">${esc(p.value)}</del>`:esc(p.value)).join('').replace(/\n/g,'<br>')}
 function baseline(area){const [s]=L().periodOf(L().cur());if(!s)return null;const until=L().addMonths(s,2);const n=facts().filter(f=>f.area===area&&isPerf(f)&&f.date<until).length;return{until,count:n,perMonth:n/2}}
 function areaStats(){
  const by={};
@@ -210,7 +219,7 @@ function applyAnswer(kind,text){
  const P=window.PiiCore;const plain=P?P.unmask(text):text;
  const fields=kind==='eval'?evalFields():kind==='both'?[...planFields(),...evalFields()]:planFields();
  const parsed=parseAnswer(plain,fields);let n=0;
- for(const [key,v] of Object.entries(parsed)){if(!clean(v.text))continue;setVal(key,v.text);refsMap()[key]=v.refs;okMap()[key]=[];n++}
+ for(const [key,v] of Object.entries(parsed)){if(!clean(v.text))continue;const before=clean(getVal(key));if(before&&before!==clean(v.text))UI.prev[key]=before;else delete UI.prev[key];setVal(key,v.text);refsMap()[key]=v.refs;okMap()[key]=[];n++}
  save();return{filled:n,total:fields.length,missing:fields.filter(f=>!parsed[f.key]||!clean(parsed[f.key].text)).map(f=>f.label)};
 }
 
@@ -224,7 +233,7 @@ async function gemini(sys,prompt){
 async function geminiAuth(code){const r=await fetch('/api/auth',{method:'POST',headers:{'content-type':'application/json','x-requested-with':'rehab-app'},credentials:'same-origin',cache:'no-store',body:JSON.stringify({code})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d?.error||'접속 코드를 확인하세요.');return true}
 
 // ---------- 화면 ----------
-const UI={pending:{plan:null,eval:null}};
+const UI={pending:{plan:null,eval:null},prev:{},chart:null};
 function view(){return document.getElementById('lfViewX')}
 function stepNav(prev,next){return `<div class="lf-stepnav">${prev?`<button class="lf-btn" data-step="${prev}">← 이전 단계</button>`:'<span></span>'}${next?`<button class="lf-btn primary" data-step="${next}">다음 단계 →</button>`:''}</div>`}
 function verdictBadge(v){return `<span class="lf-verdict v-${v}">${VERDICT_TEXT[v]}</span>`}
@@ -388,6 +397,7 @@ function renderQuick(){
  const engine=L()._state.sheet.engine||'gemini';const p=UI.pending.both;const fb=L()._state.fromBackup;
  const card1=`<section class="lf-q lf-q1"><div class="lf-qn">1</div><div class="lf-qb"><h2>회원과 기간 확인</h2>
   <p>위에서 고른 <b>${esc(m.label||'')}</b>의 <b>${esc(s||'?')} ~ ${esc(e||'?')}</b> 상담일지 <b>${ents.length}건</b>으로 씁니다.</p>
+  ${L().host?.()?'<p class="lf-help">회원은 맨 위에서, 기간은 ‘상담일지 관리’의 평가기간에서 바꿉니다.</p>':''}
   ${ents.length?'':'<p class="lf-warn">이 기간에 상담일지가 없습니다. 기간을 바꾸거나 <a href="forms.html">양식 보기·인쇄</a>에서 상담일지를 넣으세요.</p>'}</div></section>`;
  const card2=`<section class="lf-q lf-q2"><div class="lf-qn">2</div><div class="lf-qb"><h2>자동 작성</h2>
   <p>일지 구분, 목표, 계획서, 평가서를 한 번에 씁니다. 이름은 가려서 보내고, 달성 판정은 일지 횟수로 프로그램이 정합니다.</p>
@@ -412,13 +422,17 @@ function renderQuick(){
    <div class="lf-tablewrap"><table class="lf-table lf-qgoals"><tr><th></th><th>영역</th><th>단기목표</th><th>성과목표</th><th>판정</th></tr>${goalRows}</table></div>
    <h3>${list.length?`꼭 확인할 곳 ${list.length}개`:'확인할 곳이 없습니다'}</h3>
    ${list.length?`<ul class="lf-cklist">${items}</ul>`:''}
-   <details class="lf-preview"><summary>계획서·평가서 글 전체 보기</summary>${[...planFields(),...evalFields()].filter(f=>clean(getVal(f.key))).map(f=>`<p><b>${esc(f.label)}</b><br>${esc(getVal(f.key)).replace(/\n/g,'<br>')}</p>`).join('')}</details>
+   ${window.Chart&&gs.length?'<div class="lf-chartbox"><h3>월별 실시·참여 횟수</h3><div class="lf-chartwrap"><canvas id="lfChart" role="img" aria-label="목표 영역별 월별 실시·참여 횟수 그래프"></canvas></div><p class="lf-help">점선은 목표 횟수입니다. 화면에서만 보이고 양식에는 들어가지 않습니다.</p></div>':''}
+   <details class="lf-preview"${Object.keys(UI.prev).length?' open':''}><summary>계획서·평가서 글 전체 보기${Object.keys(UI.prev).length?` (다시 쓴 곳 ${Object.keys(UI.prev).length}칸 색 표시)`:''}</summary>${Object.keys(UI.prev).length?'<p class="lf-help"><ins class="lf-ins">초록</ins>은 새로 들어간 글, <del class="lf-del">빨간 줄</del>은 빠진 글입니다.</p>':''}${[...planFields(),...evalFields()].filter(f=>clean(getVal(f.key))).map(f=>`<p><b>${esc(f.label)}</b><br>${UI.prev[f.key]?diffHtml(UI.prev[f.key],getVal(f.key)):esc(getVal(f.key)).replace(/\n/g,'<br>')}</p>`).join('')}</details>
    <div class="lf-row2 lf-final">${fb?`<button class="lf-btn primary big" data-sact="send" data-to="enc">양식에 넣은 백업 파일 받기</button>`:`<button class="lf-btn primary big" data-sact="send" data-to="local" data-which="both">양식에 넣기</button>`}<a class="lf-btn" href="forms.html">양식 보기·인쇄 →</a></div>
    <p class="lf-help">작성일은 오늘(${esc(L().today())})로 들어갑니다. 넣기 전 계획서·평가서는 한 판 보관됩니다.</p>
   </div></section>`}
+ setTimeout(drawCharts,0);
  view().innerHTML=card1+card2+card3+`<p class="lf-detail-link"><button class="lf-link" data-step="3">자세히 고치기 (일지 구분·목표·칸별 수정) →</button></p>`;
 }
-function render(step){if(!L().cur())return;({1:renderQuick,4:render4,5:render5,6:render6,7:render7}[step]||renderQuick)()}
+function render(step){if(!L().cur())return;({1:renderQuick,4:render4,5:render5,6:render6,7:render7}[step]||renderQuick)();if(L().host?.())hostLinks()}
+// 기존 화면 안에서는 '양식 보기·인쇄(forms.html)' 링크를 그 화면의 재활계획서 메뉴로 바꾼다.
+function hostLinks(){for(const a of document.querySelectorAll('.lf-embed a[href="forms.html"]')){const b=document.createElement('button');b.type='button';b.className=a.className||'lf-link';b.dataset.act='navigate';b.dataset.view='plan';b.textContent=/양식 보기/.test(a.textContent)?'재활계획서 보기 →':a.textContent.replace(/양식 보기·인쇄/g,'상담일지 관리');if(!/양식 보기/.test(a.textContent))b.dataset.view='notes';a.replaceWith(b)}}
 function printHtml(step){const m=L().cur();if(!m)return '';const [s,e]=L().periodOf(m);
  const fieldsP=planFields(),fieldsE=evalFields();
  const body=(step===6?fieldsE:fieldsP).map(f=>`<h3>${esc(f.label)}</h3><p>${esc(getVal(f.key)).replace(/\n/g,'<br>')}</p>`).join('');
@@ -449,6 +463,10 @@ function applyToMember(mo,which){
 async function send(to,which){
  const m=L().cur();if(!m)return;const list=issues();
  if(list.length&&!confirm(`확인할 것이 ${list.length}개 남아 있습니다.\n- ${list.slice(0,6).map(x=>x.text).join('\n- ')}\n\n그래도 양식에 넣을까요?`))return;
+ if(to==='local'&&L().host?.()){
+  const r=L().host().commit(m.id,mo=>applyToMember(mo,which||'both'));const done=r||[];
+  if(!done.length){L().notice('확정된 문서라 넣지 않았습니다.','warn');return}
+  L().notice(`${done.join('·')}를 넣었습니다. 왼쪽 메뉴의 재활계획서·재활평가서에서 확인하고 인쇄하세요. 넣기 전 문서는 한 판 보관했습니다.`,'ok');return}
  if(to==='local'){
   const raw=L().store.read(L().OLD_KEY);let o;try{o=JSON.parse(raw)}catch{o=null}
   const mo=o?.members?.find(z=>z&&z.id===m.id);if(!mo){L().notice('이전 화면의 저장 기록에서 이 회원을 찾지 못했습니다.','warn');return}
@@ -519,5 +537,5 @@ document.addEventListener('input',ev=>{const t=ev.target;if(!inStep(t))return;
  if(t.dataset.ev==='reason'){const g=goals()[+t.closest('[data-gi]').dataset.gi];if(g){evalOf(g).reason=t.value;save()}}
 });
 
-window.LogSteps={autoGoals,autoConfirm,mustCheck,renderQuick,conflicts,showNotes,render,printHtml,facts,goals,normGoal,targetOf,shortHasMeasure,evaluate,finalVerdict,resultText,planFields,evalFields,buildPrompt,masked,parseAnswer,applyAnswer,sentenceInfo,issues,applyToMember,planForOld,evalForOld,compactNos,parseNos,setVal,getVal,PARTIAL,VERDICT_TEXT};
+window.LogSteps={monthlyCounts,diffHtml,autoGoals,autoConfirm,mustCheck,renderQuick,conflicts,showNotes,render,printHtml,facts,goals,normGoal,targetOf,shortHasMeasure,evaluate,finalVerdict,resultText,planFields,evalFields,buildPrompt,masked,parseAnswer,applyAnswer,sentenceInfo,issues,applyToMember,planForOld,evalForOld,compactNos,parseNos,setVal,getVal,PARTIAL,VERDICT_TEXT};
 })();

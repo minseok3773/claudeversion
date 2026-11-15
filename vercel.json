@@ -57,7 +57,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'none'; manifest-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-ancestors 'none'"
+          "value": "default-src 'none'; manifest-src 'self'; worker-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'; frame-ancestors 'none'"
         }
       ]
     },
@@ -71,7 +71,7 @@
       ]
     },
     {
-      "source": "/forms.html",
+      "source": "/index.html",
       "headers": [
         {
           "key": "Cache-Control",
@@ -80,7 +80,7 @@
       ]
     },
     {
-      "source": "/(log-first|log-steps|pii-core)\\.(js|css)",
+      "source": "/(log-first|log-steps|log-embed|pii-core|vendor/[^/]+)\\.(js|css|mjs)",
       "headers": [
         {
           "key": "Cache-Control",

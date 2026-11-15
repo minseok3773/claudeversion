@@ -188,3 +188,9 @@ body.lf-simple .lf-adv{display:none!important}
 
 /* v3.26.2 버전 표시(양식 화면과 같은 번호) */
 .lf-ver{align-self:center;font-size:12px;color:#6b7280;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px}
+
+/* v3.27.0 월별 그래프·다시 쓴 곳 표시 */
+.lf-chartbox{margin:14px 0}.lf-chartbox h3{margin:0 0 6px;font-size:15px}
+.lf-chartwrap{position:relative;height:220px;max-width:760px}
+.lf-ins{background:#E3F5EA;color:#14532D;text-decoration:none}
+.lf-del{background:#FDECEC;color:#9F1C1C}
