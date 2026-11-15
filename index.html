@@ -10,7 +10,7 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#0D74CE">
 <link rel="stylesheet" href="fonts/pretendard/pretendardvariable-dynamic-subset.css">
-<link rel="stylesheet" href="log-first.css?v=3.25.0">
+<link rel="stylesheet" href="log-first.css?v=3.26.0">
 </head>
 <body>
 <div class="lf-shell">
@@ -22,9 +22,8 @@
   <div class="lf-head-btns"><button class="lf-btn" data-act="desktop" title="이 프로그램을 앱으로 설치해 바탕화면에서 바로 엽니다">바탕화면에 설치</button><a class="lf-btn" href="forms.html" title="재활계획서·재활평가서·주치의편지 양식, 상담일지 입력, 백업">양식 보기·인쇄 →</a></div>
  </header>
 
- <ol class="lf-steps noprint" aria-label="작성 단계">
-  <li class="done"><a href="forms.html"><span>①</span>회원 등록</a></li>
-  <li class="done"><a href="forms.html"><span>②</span>상담일지 넣기</a></li>
+ <ol class="lf-steps lf-adv noprint" aria-label="자세히 고치기 단계">
+  <li><button type="button" data-step="1" class="lf-back">← 간단히 보기</button></li>
   <li><button type="button" data-step="3"><span>③</span>일지 정리표</button></li>
   <li><button type="button" data-step="4"><span>④</span>목표 고르기</button></li>
   <li><button type="button" data-step="5"><span>⑤</span>계획서</button></li>
@@ -38,10 +37,10 @@
   <span class="lf-tilde">~</span>
   <label class="lf-nolabel"><input type="date" id="lfEnd" aria-label="기간 끝"></label>
   <span class="lf-grow"></span>
-  <button class="lf-btn" data-act="load-backup">백업 파일 불러오기</button>
-  <button class="lf-btn" data-act="sheet-export">정리표 백업</button>
-  <button class="lf-btn" data-act="sheet-import">정리표 불러오기</button>
-  <button class="lf-btn primary" data-act="print">인쇄</button>
+  <button class="lf-btn lf-small" data-act="load-backup" title="다른 컴퓨터에서 받은 백업 파일로 열기">백업 파일로 열기</button>
+  <button class="lf-btn lf-adv" data-act="sheet-export">정리표 백업</button>
+  <button class="lf-btn lf-adv" data-act="sheet-import">정리표 불러오기</button>
+  <button class="lf-btn primary lf-adv" data-act="print">인쇄</button>
   <input type="file" id="lfBackupFile" accept=".json,application/json" hidden>
   <input type="file" id="lfSheetFile" accept=".json,application/json" hidden>
  </section>
@@ -66,8 +65,8 @@
   <div class="lf-dialog-btns"><button class="lf-btn" value="cancel">취소</button><button class="lf-btn primary" value="ok">열기</button></div>
  </form>
 </dialog>
-<script src="pii-core.js?v=3.25.0" defer></script>
-<script src="log-steps.js?v=3.25.0" defer></script>
-<script src="log-first.js?v=3.25.0" defer></script>
+<script src="pii-core.js?v=3.26.0" defer></script>
+<script src="log-steps.js?v=3.26.0" defer></script>
+<script src="log-first.js?v=3.26.0" defer></script>
 </body>
 </html>

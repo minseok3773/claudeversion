@@ -152,14 +152,14 @@ const STYLE=[
  '4. 사건을 늘어놓지 말고 평가어로 묶는다.',
  '5. 아래 정리표에 없는 내용은 쓰지 않는다. 각 문장 끝에 근거 줄 번호를 (근거 3, 7)처럼 붙인다. "해당사항 없음"에는 붙이지 않는다.'
 ];
-function systemText(kind){return [`너는 정신재활시설의 경력 많은 정신건강사회복지사로서 회원의 재활${kind==='eval'?'평가서':'계획서'} 칸을 쓴다.`,'문체 규칙',...STYLE,'답은 칸마다 [칸 이름] 줄을 먼저 쓰고 그 아래에 문장만 쓴다. 칸 이름은 요청에 적힌 그대로 쓴다. 다른 설명, 인사말, 코드 블록은 쓰지 않는다.'].join('\n')}
+function systemText(kind){return [`너는 정신재활시설의 경력 많은 정신건강사회복지사로서 회원의 재활${kind==='eval'?'평가서':kind==='both'?'계획서와 재활평가서':'계획서'} 칸을 쓴다.`,'문체 규칙',...STYLE,'답은 칸마다 [칸 이름] 줄을 먼저 쓰고 그 아래에 문장만 쓴다. 칸 이름은 요청에 적힌 그대로 쓴다. 다른 설명, 인사말, 코드 블록은 쓰지 않는다.'].join('\n')}
 function factLine(f){return `#${f.no} ${f.date.slice(0,7)} | ${L().AREA_NAME[f.area]} | ${L().KIND_NAME[f.kind]}${f.sick?'(건강 사유)':''} | ${clean(f.act)||'-'}${f.voice&&!f.risk?` | 회원 말 "${clean(f.voice)}"`:''}${f.risk?' | 위험 확인 기록(회원 말 인용 금지)':''}`}
 function buildPrompt(kind){
  const m=L().cur();const [s,e]=L().periodOf(m);const f=facts();
- const fields=kind==='eval'?evalFields():planFields();
+ const fields=kind==='eval'?evalFields():kind==='both'?[...planFields(),...evalFields()]:planFields();
  const goalLines=goals().map((g,i)=>{const c=evaluate(g);const base=[`목표 ${i+1}: ${L().AREA_NAME[g.area]} 영역, 측정 기준 "${targetOf(g)||'미정'}"`];
-  if(kind==='eval')base.push(`  기간 목표 ${c.expected}회 · 실시·참여 ${c.perf}회 · ${c.pct}% · 건강 사유 불참 ${c.sick}회 · 판정 "${VERDICT_TEXT[finalVerdict(g)]}"(프로그램이 정한 판정이므로 바꾸지 말 것)`);
-  else{const b=baseline(g.area);if(b)base.push(`  기초선: 기간 첫 2개월 월 평균 ${b.perMonth.toFixed(1)}회`)}
+  if(kind!=='plan')base.push(`  기간 목표 ${c.expected}회 · 실시·참여 ${c.perf}회 · ${c.pct}% · 건강 사유 불참 ${c.sick}회 · 판정 "${VERDICT_TEXT[finalVerdict(g)]}"(프로그램이 정한 판정이므로 바꾸지 말 것)`);
+  if(kind!=='eval'){const b=baseline(g.area);if(b)base.push(`  기초선: 기간 첫 2개월 월 평균 ${b.perMonth.toFixed(1)}회`)}
   if(clean(g.long))base.push(`  장기목표: ${clean(g.long)}`);if(kind==='eval'&&clean(g.short))base.push(`  단기목표: ${clean(g.short)}`);
   return base.join('\n')});
  const sec=fields.map(x=>`[${x.label}]\n- 할 일: ${x.ask}\n- 참고 줄: ${compactNos(x.refs)}`);
@@ -208,7 +208,7 @@ function fieldLines(key,fields){return !!fields.find(f=>f.key===key)?.lines}
 function parseNos(t){const out=[];for(const p of String(t).replace(/#/g,'').split(/[,\s]+/).filter(Boolean)){const r=/^(\d+)[~\-–](\d+)$/.exec(p);if(r){for(let i=+r[1];i<=+r[2]&&i-+r[1]<50;i++)out.push(i)}else if(/^\d+$/.test(p))out.push(+p)}return out}
 function applyAnswer(kind,text){
  const P=window.PiiCore;const plain=P?P.unmask(text):text;
- const fields=kind==='eval'?evalFields():planFields();
+ const fields=kind==='eval'?evalFields():kind==='both'?[...planFields(),...evalFields()]:planFields();
  const parsed=parseAnswer(plain,fields);let n=0;
  for(const [key,v] of Object.entries(parsed)){if(!clean(v.text))continue;setVal(key,v.text);refsMap()[key]=v.refs;okMap()[key]=[];n++}
  save();return{filled:n,total:fields.length,missing:fields.filter(f=>!parsed[f.key]||!clean(parsed[f.key].text)).map(f=>f.label)};
@@ -255,7 +255,7 @@ function render4(){
 }
 
 function aiPanel(kind){
- const x=ms();const engine=L()._state.sheet.engine||'claude';const p=UI.pending[kind];
+ const x=ms();const engine=L()._state.sheet.engine||'gemini';const p=UI.pending[kind];
  const title=kind==='eval'?'평가서':'계획서';
  return `<section class="lf-panel lf-ai" data-kind="${kind}">
   <h3>AI로 ${title} 문장 쓰기</h3>
@@ -364,7 +364,61 @@ function render7(){
    <p class="lf-help">넣은 뒤 이전 화면이 열려 있으면 그 창을 새로고침하세요.</p>`}
  </section>${stepNav(6,0)}`;
 }
-function render(step){if(!L().cur())return;({4:render4,5:render5,6:render6,7:render7}[step]||render4)()}
+// ---------- 간단히: 한 화면에서 끝내기 ----------
+// 처음 쓰는 직원도 설명서 없이: ① 회원·기간 확인 ② 자동 작성 ③ 빨간 곳만 확인하고 양식에 넣기.
+function autoGoals(){if(goals().length)return;
+ for(const a of areaStats().filter(a=>a.perf>0).sort((p,q)=>q.perf-p.perf||q.total-p.total).slice(0,MAX_GOALS)){const b=baseline(a.area);goals().push(normGoal({area:a.area,behavior:topAct(a.area),per:'month',n:b?Math.max(1,Math.ceil(b.perMonth+0.5)):1}))}
+ save()}
+function autoConfirm(){const m=L().cur();for(const e of (L()._state.ents||[]))if(!e.confirmed){e.confirmed=true;const ms_=L().msheet(m.id);ms_.notes[e.key]={rows:e.rows.map(L().normRow),confirmed:true,updatedAt:new Date().toISOString(),auto:true}}save()}
+function written(){return [...planFields(),...evalFields()].some(f=>clean(getVal(f.key)))}
+// 꼭 확인할 곳: 근거 없는 문장, 숫자가 다른 문장, 단기목표 숫자 없음, 위험 기록, 일지끼리 맞지 않음, 빈 칸
+function mustCheck(){
+ const out=[];
+ for(const fl of [...planFields(),...evalFields()]){const info=sentenceInfo(fl.key);
+  if(!info.length&&!/^psycho/.test(fl.key)){out.push({kind:'empty',key:fl.key,label:fl.label});continue}
+  info.forEach((x,j)=>{if(x.none)out.push({kind:'none',key:fl.key,label:fl.label,s:x.s,j});else if(x.nums.length)out.push({kind:'nums',key:fl.key,label:fl.label,s:x.s,j,nums:x.nums})});
+  if(shortProblem(fl.key))out.push({kind:'short',key:fl.key,label:fl.label,s:getVal(fl.key)});
+ }
+ const risk=facts().filter(x=>x.risk);if(risk.length)out.unshift({kind:'risk',text:`위험 기록 ${risk.length}건 (${[...new Set(risk.map(x=>x.date))].join(', ')}) — 위기 대응 기록이 있는지 확인하세요.`});
+ for(const c of conflicts())out.push({kind:'conflict',text:`일지끼리 맞지 않아 보임 — ${c.text}`});
+ return out;
+}
+function renderQuick(){
+ const m=L().cur();const [s,e]=L().periodOf(m);const ents=L()._state.ents||[];const gs=goals();const done=written();
+ const engine=L()._state.sheet.engine||'gemini';const p=UI.pending.both;const fb=L()._state.fromBackup;
+ const card1=`<section class="lf-q lf-q1"><div class="lf-qn">1</div><div class="lf-qb"><h2>회원과 기간 확인</h2>
+  <p>위에서 고른 <b>${esc(m.label||'')}</b>의 <b>${esc(s||'?')} ~ ${esc(e||'?')}</b> 상담일지 <b>${ents.length}건</b>으로 씁니다.</p>
+  ${ents.length?'':'<p class="lf-warn">이 기간에 상담일지가 없습니다. 기간을 바꾸거나 <a href="forms.html">양식 보기·인쇄</a>에서 상담일지를 넣으세요.</p>'}</div></section>`;
+ const card2=`<section class="lf-q lf-q2"><div class="lf-qn">2</div><div class="lf-qb"><h2>자동 작성</h2>
+  <p>일지 구분, 목표, 계획서, 평가서를 한 번에 씁니다. 이름은 가려서 보내고, 달성 판정은 일지 횟수로 프로그램이 정합니다.</p>
+  <div class="lf-engine"><label><input type="radio" name="eng-q" data-sact="engine" value="gemini"${engine==='gemini'?' checked':''}> 무료 Gemini (버튼 한 번)</label><label><input type="radio" name="eng-q" data-sact="engine" value="claude"${engine==='claude'?' checked':''}> Claude 채팅 (복사해서 붙여넣기)</label></div>
+  ${!p?`<button class="lf-btn primary big" data-sact="quick-auto"${ents.length?'':' disabled'}>${done?'다시 자동 작성':'자동 작성 시작'}</button>${done?'<span class="lf-help"> 이미 쓴 글이 있습니다. 다시 누르면 새로 씁니다.</span>':''}`
+  :engine==='claude'?`<ol class="lf-mini"><li><button class="lf-btn primary" data-sact="claude-open" data-kind="both">복사하고 Claude 열기</button> 를 누르고 Claude 창에 붙여 넣어 보냅니다.</li><li>Claude의 답 전체를 복사해 아래에 붙여 넣고 <b>답 넣기</b>를 누릅니다.</li></ol>
+   <textarea class="lf-answer" data-answer="both" rows="5" placeholder="Claude의 답을 여기에 붙여 넣기"></textarea><div class="lf-row2"><button class="lf-btn primary" data-sact="answer-in" data-kind="both">답 넣기</button><button class="lf-link" data-sact="quick-cancel">취소</button></div>`
+  :`<div class="lf-row2"><input type="password" class="lf-code" data-code="both" placeholder="기관 접속 코드(처음 한 번)" autocomplete="off"><button class="lf-btn primary" data-sact="gemini-send" data-kind="both">Gemini로 보내기</button><button class="lf-link" data-sact="quick-cancel">취소</button></div>`}
+  ${p&&p.left.length?`<p class="lf-warn lf-help">이름일 수 있는 말이 가려지지 않았습니다: <b>${esc(p.left.join(', '))}</b> — 이름이면 <a href="forms.html">양식 보기·인쇄</a>의 '가릴 이름' 칸에 적고 다시 누르세요.</p>`:''}
+  </div></section>`;
+ let card3='';
+ if(done){const list=mustCheck();
+  const goalRows=gs.map((g,i)=>`<tr><td>${i+1}</td><th>${esc(L().AREA_NAME[g.area])}</th><td>${esc(clean(g.short)||'—')}</td><td>${esc(targetOf(g))}</td><td>${verdictBadge(finalVerdict(g))}<br><small>${esc(resultText(g))}</small></td></tr>`).join('');
+  const items=list.map(it=>{
+   if(it.kind==='risk'||it.kind==='conflict')return `<li class="lf-ck warn"><span>${esc(it.text)}</span></li>`;
+   if(it.kind==='empty')return `<li class="lf-ck"><b>${esc(it.label)}</b> 칸이 비어 있습니다. <button class="lf-link" data-sact="goto-field" data-key="${esc(it.key)}">직접 쓰기</button></li>`;
+   if(it.kind==='short')return `<li class="lf-ck"><b>${esc(it.label)}</b>에 측정 횟수가 없습니다: “${esc(it.s)}” <button class="lf-link" data-sact="goto-field" data-key="${esc(it.key)}">고치기</button></li>`;
+   const why=it.kind==='none'?'일지에서 근거를 찾지 못한 문장':`일지 횟수와 다른 숫자(${esc(it.nums.join(', '))})`;
+   return `<li class="lf-ck"><span class="lf-ck-why">${why}</span><b>${esc(it.label)}</b> “${esc(it.s)}”
+    <span class="lf-ck-btns"><button class="lf-btn small" data-sact="q-ok" data-key="${esc(it.key)}" data-s="${it.j}">맞음</button><button class="lf-btn small" data-sact="q-del" data-key="${esc(it.key)}" data-s="${it.j}">지우기</button></span></li>`}).join('');
+  card3=`<section class="lf-q lf-q3"><div class="lf-qn">3</div><div class="lf-qb"><h2>확인하고 양식에 넣기</h2>
+   <div class="lf-tablewrap"><table class="lf-table lf-qgoals"><tr><th></th><th>영역</th><th>단기목표</th><th>성과목표</th><th>판정</th></tr>${goalRows}</table></div>
+   <h3>${list.length?`꼭 확인할 곳 ${list.length}개`:'확인할 곳이 없습니다'}</h3>
+   ${list.length?`<ul class="lf-cklist">${items}</ul>`:''}
+   <details class="lf-preview"><summary>계획서·평가서 글 전체 보기</summary>${[...planFields(),...evalFields()].filter(f=>clean(getVal(f.key))).map(f=>`<p><b>${esc(f.label)}</b><br>${esc(getVal(f.key)).replace(/\n/g,'<br>')}</p>`).join('')}</details>
+   <div class="lf-row2 lf-final">${fb?`<button class="lf-btn primary big" data-sact="send" data-to="enc">양식에 넣은 백업 파일 받기</button>`:`<button class="lf-btn primary big" data-sact="send" data-to="local" data-which="both">양식에 넣기</button>`}<a class="lf-btn" href="forms.html">양식 보기·인쇄 →</a></div>
+   <p class="lf-help">작성일은 오늘(${esc(L().today())})로 들어갑니다. 넣기 전 계획서·평가서는 한 판 보관됩니다.</p>
+  </div></section>`}
+ view().innerHTML=card1+card2+card3+`<p class="lf-detail-link"><button class="lf-link" data-step="3">자세히 고치기 (일지 구분·목표·칸별 수정) →</button></p>`;
+}
+function render(step){if(!L().cur())return;({1:renderQuick,4:render4,5:render5,6:render6,7:render7}[step]||renderQuick)()}
 function printHtml(step){const m=L().cur();if(!m)return '';const [s,e]=L().periodOf(m);
  const fieldsP=planFields(),fieldsE=evalFields();
  const body=(step===6?fieldsE:fieldsP).map(f=>`<h3>${esc(f.label)}</h3><p>${esc(getVal(f.key)).replace(/\n/g,'<br>')}</p>`).join('');
@@ -430,6 +484,11 @@ function inStep(el){return !!el.closest('#lfViewX')}
 document.addEventListener('click',async ev=>{
  const b=ev.target.closest('[data-sact]');if(!b||!inStep(b))return;const act=b.dataset.sact;const x=ms();if(!x)return;
  if(act==='pick'||act==='engine'||act==='consent')return; // change에서 처리
+ if(act==='quick-auto'){autoConfirm();autoGoals();UI.pending.both=masked('both');const eng=L()._state.sheet.engine||'gemini';rerender();
+  if(eng==='gemini'){const btn=document.querySelector('[data-sact="gemini-send"]');if(btn)btn.click()}return}
+ if(act==='quick-cancel'){UI.pending.both=null;rerender();return}
+ if(act==='q-ok'||act==='q-del'){const key=b.dataset.key;const s_=sentenceInfo(key)[+b.dataset.s]?.s;if(!s_)return;if(act==='q-ok'){const ok=okMap();ok[key]=[...(ok[key]||[]),s_]}else{const parts=splitSentences(getVal(key)).filter(x=>x!==s_);setVal(key,parts.join(fieldLines(key,[...planFields(),...evalFields()])?'\n':' '))}save();rerender();return}
+ if(act==='goto-field'){const key=b.dataset.key;L().goStep(/^e\d|^overall|^eopinion/.test(key)?6:5);setTimeout(()=>{const t=[...document.querySelectorAll('#lfViewX textarea[data-pf]')].find(z=>z.dataset.pf===key);if(t){t.scrollIntoView({block:'center'});t.focus()}},50);return}
  if(act==='goal-del'){const i=+b.closest('[data-gi]').dataset.gi;goals().splice(i,1);save();rerender();return}
  if(act==='import-old'){const old=L().cur().plan.goals.filter(g=>clean(g.short)||clean(g.long));for(const g of old){if(goals().length>=MAX_GOALS)break;if(goals().some(z=>z.id===g.id))continue;goals().push(normGoal({id:g.id,area:'etc',long:g.long,short:g.short,plan:g.plan,activity:g.activity,src:'old'}))}save();rerender();return}
  if(act==='show-note'){showNotes(b.dataset.date);return}
@@ -460,5 +519,5 @@ document.addEventListener('input',ev=>{const t=ev.target;if(!inStep(t))return;
  if(t.dataset.ev==='reason'){const g=goals()[+t.closest('[data-gi]').dataset.gi];if(g){evalOf(g).reason=t.value;save()}}
 });
 
-window.LogSteps={conflicts,showNotes,render,printHtml,facts,goals,normGoal,targetOf,shortHasMeasure,evaluate,finalVerdict,resultText,planFields,evalFields,buildPrompt,masked,parseAnswer,applyAnswer,sentenceInfo,issues,applyToMember,planForOld,evalForOld,compactNos,parseNos,setVal,getVal,PARTIAL,VERDICT_TEXT};
+window.LogSteps={autoGoals,autoConfirm,mustCheck,renderQuick,conflicts,showNotes,render,printHtml,facts,goals,normGoal,targetOf,shortHasMeasure,evaluate,finalVerdict,resultText,planFields,evalFields,buildPrompt,masked,parseAnswer,applyAnswer,sentenceInfo,issues,applyToMember,planForOld,evalForOld,compactNos,parseNos,setVal,getVal,PARTIAL,VERDICT_TEXT};
 })();
