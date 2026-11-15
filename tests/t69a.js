@@ -6,7 +6,7 @@ const read=f=>fs.readFileSync(path.join(DIR,f),'utf8');
 const VER=JSON.parse(read('package.json')).version;
 (()=>{
  console.log('[1] 디자인 파일 연결과 페이지 보안 설정');
- {const html=read('index.html');
+ {const html=read('forms.html');
   const style=html.indexOf('</style>'),font=html.indexOf('<link rel="stylesheet" href="fonts/pretendard/pretendardvariable-dynamic-subset.css">'),theme=html.indexOf(`<link rel="stylesheet" href="theme.css?v=${VER}">`);
   ok(style>0&&font>style&&theme>font,'글꼴·디자인 파일을 기본 스타일 다음에 연결(디자인이 앞의 모양을 덮음)',[style,font,theme]);
   const csp=(html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)||[])[1]||'';

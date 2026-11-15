@@ -146,3 +146,16 @@ select:focus,input:focus{outline:2px solid var(--primary-line);border-color:var(
 .lf-date-chip:hover{text-decoration:underline}
 .lf-note-dlg{max-width:640px}
 .lf-note-dlg pre{white-space:pre-wrap;font:inherit;font-size:14px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:8px;padding:10px;max-height:60vh;overflow:auto}
+.lf-guide{margin-top:12px;background:var(--surface);border:1px solid var(--primary-line);border-radius:14px;padding:14px 18px}
+.lf-guide h2{margin:0;font-size:16px}
+.lf-guide-head{display:flex;justify-content:space-between;align-items:center}
+.lf-howto{margin:8px 0 10px;padding-left:20px;font-size:14px;line-height:1.7}
+.lf-howto a{color:var(--primary)}
+.lf-next{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--primary-soft);border-radius:10px;padding:10px 12px}
+.lf-next span{font-size:12px;font-weight:700;color:#fff;background:var(--primary);border-radius:999px;padding:2px 9px}
+.lf-next.done span{background:var(--ok)}
+.lf-next b{flex:1;min-width:200px;font-size:14.5px}
+.lf-howto-toggle{margin-top:6px}
+.lf-steps .lf-st{font-size:11px;opacity:.85;margin-left:2px}
+.lf-steps button.ok:not(.now){border-color:#B7E1C8;color:var(--ok)}
+.lf-summary:empty{display:none}

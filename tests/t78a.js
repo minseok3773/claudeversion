@@ -15,7 +15,7 @@ add('2026-09-09','복약 점검','복약 점검표를 함께 확인함.');
 const old={members:[{id:'m1',label:'회원 001',piiNames:'김철수, 박순자',periodStart:'2026-05-01',periodEnd:'2026-10-31',notes,plan:{goals:[{id:'old1',long:'옛 장기목표',short:'옛 단기목표'}],services:[{type:'x',service:'y',resource:'z'}]},evaluation:{},finalizedDocs:{}}],memberId:'m1',save:true,piiGlobal:'새희망둥지'};
 
 async function boot(seed){
- const html=fs.readFileSync(path.join(ROOT,'logs.html'),'utf8').replace(/<script[^>]*><\/script>/g,'');
+ const html=fs.readFileSync(path.join(ROOT,'index.html'),'utf8').replace(/<script[^>]*><\/script>/g,'');
  const dom=new JSDOM(html,{url:'https://example.test/logs.html',runScripts:'outside-only',pretendToBeVisual:true});
  const w=dom.window;w.confirm=()=>true;w.print=()=>{};w.scrollTo=()=>{};
  for(const [k,v] of Object.entries(seed||{}))w.localStorage.setItem(k,v);

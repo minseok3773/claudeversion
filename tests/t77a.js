@@ -18,7 +18,7 @@ const old={members:[{id:'m1',label:'회원 001',periodStart:'2026-05-01',periodE
 const oldRaw=JSON.stringify(old);
 
 async function boot(seed){
- const html=fs.readFileSync(path.join(ROOT,'logs.html'),'utf8').replace(/<script[^>]*><\/script>/g,'');
+ const html=fs.readFileSync(path.join(ROOT,'index.html'),'utf8').replace(/<script[^>]*><\/script>/g,'');
  const dom=new JSDOM(html,{url:'https://example.test/logs.html',runScripts:'outside-only',pretendToBeVisual:true});
  const w=dom.window;w.confirm=()=>true;w.print=()=>{};
  for(const [k,v] of Object.entries(seed||{}))w.localStorage.setItem(k,v);
@@ -58,6 +58,9 @@ const fire=(w,el,type)=>el.dispatchEvent(new w.Event(type,{bubbles:true}));
  const hyg=[...d.querySelectorAll('#lfSummary tr')].find(tr=>/^개인위생/.test(tr.querySelector('th')?.textContent||''));
  ok(hyg&&hyg.children[7].textContent.trim()==='1'&&hyg.children[4].textContent.trim()==='1','위생: 안내 1건은 실적에서 빠지고 요리 참여 1건만 실적');
  ok(w.localStorage.getItem(OLD_KEY)===oldRaw,'이전 화면 기록은 바뀌지 않음');
+ const g=d.querySelector('#lfGuide');ok(g&&!g.hidden&&/지금 할 일/.test(g.textContent)&&/일지 6건을 확인하고 확정하기/.test(g.textContent),'첫 화면에 쓰는 순서와 지금 할 일');
+ ok(/확정 0\/6/.test(d.querySelector('[data-step="3"]').textContent),'단계 단추에 진행 상황');
+ ok(d.querySelector('a[href="forms.html"]'),'양식 보기·인쇄(이전 화면)로 가는 길');
 
  // 구분 바꾸기 → 저장·집계 반영
  const c3=d.querySelectorAll('.lf-card')[2];const sel=c3.querySelector('select[data-f="kind"]');sel.value='do';fire(w,sel,'change');
@@ -77,7 +80,7 @@ const fire=(w,el,type)=>el.dispatchEvent(new w.Event(type,{bubbles:true}));
  d.querySelectorAll('.lf-card')[1].querySelectorAll('[data-act="row-del"]')[n2-1].click();
  ok(d.querySelectorAll('.lf-card')[1].querySelectorAll('.lf-row').length===n2-1,'줄 삭제');
  // 모두 확정
- d.querySelector('[data-act="confirm-all"]').click();ok(!/미확정/.test(d.querySelector('#lfSummary').textContent),'추천 그대로 모두 확정');
+ d.querySelector('[data-act="confirm-all"]').click();ok(/목표 영역 고르고/.test(d.querySelector('#lfGuide').textContent),'모두 확정하면 지금 할 일이 ④로');ok(!/미확정/.test(d.querySelector('#lfSummary').textContent),'추천 그대로 모두 확정');
  // 인쇄 요약표
  const pr=d.querySelector('#lfPrint').textContent;ok(/기간별 상담 요약표/.test(pr)&&/2026-05-01 ~ 2026-10-31/.test(pr)&&/작성일/.test(pr),'인쇄용 요약표에 기간·작성일');
  // 기간 바꾸기

@@ -10,8 +10,8 @@ const VER=JSON.parse(require('fs').readFileSync(require('path').join(DIR,'packag
   ok(t.$('#appVersion')?.textContent==='v'+VER,'머리글 버전 표시',[t.$('#appVersion')?.textContent,VER]);
  }
  console.log('[버전 표시가 모두 같은지]');
- {const fs=require('fs'),path=require('path'),read=f=>fs.readFileSync(path.join(DIR,f),'utf8');const html=read('index.html'),lock=JSON.parse(read('package-lock.json'));
-  ok(html.includes('<title>재활계획서&재활평가서 — v'+VER+'</title>'),'index.html 제목',html.match(/<title>[^<]*<\/title>/)?.[0]);
+ {const fs=require('fs'),path=require('path'),read=f=>fs.readFileSync(path.join(DIR,f),'utf8');const html=read('forms.html'),lock=JSON.parse(read('package-lock.json'));
+  ok(html.includes('<title>재활계획서&재활평가서 — v'+VER+'</title>'),'forms.html 제목',html.match(/<title>[^<]*<\/title>/)?.[0]);
   const vs=[...html.matchAll(/<script src="[^"?]+\?v=([^"]+)"/g)].map(m=>m[1]);ok(vs.length>=4&&vs.every(v=>v===VER),'스크립트 주소의 ?v= (새 버전을 바로 받게)',vs);
   ok(new RegExp("const APP_RELEASE='"+VER.replace(/\./g,'\\.')+"-").test(read('app.js')),'app.js APP_RELEASE');
   ok(lock.version===VER&&lock.packages?.['']?.version===VER,'package-lock.json',[lock.version,lock.packages?.['']?.version])}

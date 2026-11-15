@@ -194,14 +194,44 @@ function summaryHtml(sum,ents,forPrint){
   ${forPrint?'':`<p class="lf-help">실적은 ‘실시’와 ‘참여’만 셉니다. ‘안내·권유’만 한 일지는 실적에 들어가지 않습니다. 첫 2개월 월 평균은 ${esc(sum.baseUntil?'기간 시작부터 '+sum.baseUntil+' 전까지':'')} 기록으로, 다음 단계에서 목표 숫자를 정할 때 기준(기초선)으로 씁니다.</p>
   ${un?`<button class="lf-btn" data-act="confirm-all">추천 그대로 모두 확정</button>`:''}`}`;
 }
+// 첫 화면 안내: 처음 온 사람이 무엇을 어떤 순서로 하면 되는지, 지금 이 회원은 어디까지 했는지.
+function stepStatus(m){
+ const st={};const ents=S.ents||[];const ms_=S.sheet.members[m.id]||{};const LS=window.LogSteps;
+ const un=ents.filter(e=>!e.confirmed).length;
+ st[3]={text:ents.length?`확정 ${ents.length-un}/${ents.length}`:'일지 없음',done:ents.length>0&&!un,todo:ents.length?`일지 ${un}건을 확인하고 확정하기`:'양식 보기·인쇄 화면에서 상담일지 넣기'};
+ const gs=ms_.goals||[];const noN=gs.filter(g=>!g.n).length;
+ st[4]={text:gs.length?`목표 ${gs.length}개`:'목표 없음',done:gs.length>0&&!noN,todo:gs.length?`목표 ${noN}개의 횟수 기준 정하기`:'목표 영역 고르고 횟수 정하기'};
+ if(LS&&gs.length){const fill=fs=>fs.filter(f=>clean(LS.getVal(f.key))).length;const pf=LS.planFields(),ef=LS.evalFields();const p=fill(pf),e=fill(ef);
+  st[5]={text:`${p}/${pf.length}칸`,done:p===pf.length,todo:`계획서 빈 칸 ${pf.length-p}개 채우기('보낼 글 만들기'로 AI 문장 받기)`};
+  st[6]={text:`${e}/${ef.length}칸`,done:e===ef.length,todo:`평가서 빈 칸 ${ef.length-e}개 채우기`};
+  const is=LS.issues();st[7]={text:is.length?`확인 ${is.length}`:'준비됨',done:!is.length,todo:is.length?`확인할 것 ${is.length}개 보고 양식에 넣기`:'양식에 넣고 양식 보기·인쇄에서 인쇄하기'};}
+ else{st[5]={text:'',done:false,todo:''};st[6]={text:'',done:false,todo:''};st[7]={text:'',done:false,todo:''}}
+ return st;
+}
+function guideHidden(){try{return localStorage.getItem('lf_guide_hidden')==='1'}catch{return false}}
+function renderGuide(m){
+ const el=$('#lfGuide');if(!el)return;
+ const steps=`<ol class="lf-howto">
+   <li><b>상담일지 넣기</b> — <a href="forms.html">양식 보기·인쇄</a> 화면에서 회원을 만들고 상담일지를 넣습니다(한글 붙여넣기 가능). 이미 있으면 건너뜁니다.</li>
+   <li><b>③ 일지 정리표</b> — 일지마다 영역과 구분(실시·참여·권유·불참)을 확인하고 '확정'을 누릅니다.</li>
+   <li><b>④ 목표 고르기</b> — 기록이 많은 영역을 최대 3개 고르고 "월 2회"처럼 횟수를 정합니다.</li>
+   <li><b>⑤ 계획서 · ⑥ 평가서</b> — '보낼 글 만들기'로 AI 문장을 받고, 빨간 '근거 없음'을 정리합니다. 판정은 프로그램이 횟수로 정합니다.</li>
+   <li><b>⑦ 최종 검토</b> — 남은 확인거리를 보고 '양식에 넣기'를 누른 뒤, 양식 보기·인쇄 화면에서 인쇄합니다.</li></ol>`;
+ if(!m){el.hidden=false;el.innerHTML=`<h2>처음이세요? 이렇게 쓰시면 됩니다</h2>${steps}`;return}
+ const st=stepStatus(m);const next=[3,4,5,6,7].find(n=>!st[n].done&&st[n].todo);
+ const nextHtml=next?`<div class="lf-next"><span>지금 할 일</span><b>${'③④⑤⑥⑦'[next-3]} ${esc(st[next].todo)}</b>${next!==S.step?`<button class="lf-btn primary" data-step="${next}">여기로 가기 →</button>`:''}</div>`:`<div class="lf-next done"><span>모두 마침</span><b>양식 보기·인쇄 화면에서 계획서·평가서를 확인하고 인쇄하세요.</b><a class="lf-btn primary" href="forms.html">양식 보기·인쇄 →</a></div>`;
+ el.hidden=false;
+ el.innerHTML=guideHidden()?nextHtml+`<button class="lf-link lf-howto-toggle" data-act="guide-show">쓰는 순서 보기</button>`:`<div class="lf-guide-head"><h2>이렇게 쓰시면 됩니다</h2><button class="lf-link" data-act="guide-hide">접기</button></div>${steps}${nextHtml}`;
+ document.querySelectorAll('[data-step]').forEach(b=>{if(!b.closest('.lf-steps'))return;const n=Number(b.dataset.step);let sm=b.querySelector('.lf-st');if(!sm){sm=document.createElement('small');sm.className='lf-st';b.appendChild(sm)}sm.textContent=st[n]?.text?(st[n].done?'✓ ':'')+st[n].text:'';b.classList.toggle('ok',!!st[n]?.done)});
+}
 function render(){
  const m=cur();
  // ④~⑦ 단계 화면은 log-steps.js가 그린다.
  document.querySelectorAll('[data-step]').forEach(b=>{const on=Number(b.dataset.step)===S.step;b.classList.toggle('now',on);if(on)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current')});
  const v3=$('#lfView3'),vx=$('#lfViewX');
- if(S.step!==3&&m&&window.LogSteps){S.memberId=m.id;renderMembers();const [s,e]=periodOf(m);$('#lfStart').value=s;$('#lfEnd').value=e;S.ents=entriesOf(m);v3.hidden=true;vx.hidden=false;window.LogSteps.render(S.step);$('#lfPrint').innerHTML=window.LogSteps.printHtml?window.LogSteps.printHtml(S.step):'';return}
+ if(S.step!==3&&m&&window.LogSteps){S.memberId=m.id;renderMembers();const [s,e]=periodOf(m);$('#lfStart').value=s;$('#lfEnd').value=e;S.ents=entriesOf(m);v3.hidden=true;vx.hidden=false;window.LogSteps.render(S.step);$('#lfPrint').innerHTML=window.LogSteps.printHtml?window.LogSteps.printHtml(S.step):'';renderGuide(m);return}
  v3.hidden=false;vx.hidden=true;vx.innerHTML='';
- if(!m){$('#lfNotes').innerHTML=`<div class="lf-empty"><h2>회원 기록을 찾지 못했습니다</h2><p>이전 화면에서 ‘이 브라우저에 저장’을 켜 두었다면 여기서 바로 읽습니다. 꺼져 있거나 다른 컴퓨터라면 ‘백업 파일 불러오기’로 백업 파일(평문 또는 암호화)을 여세요.</p><p>이 화면은 이전 화면의 기록을 읽기만 하고 바꾸지 않습니다.</p></div>`;$('#lfSummary').innerHTML='';renderMembers();return}
+ if(!m){$('#lfNotes').innerHTML=`<div class="lf-empty"><h2>회원 기록을 찾지 못했습니다</h2><p><a class="lf-btn primary" href="forms.html">양식 보기·인쇄 화면에서 회원·상담일지 넣기 →</a></p><p>그 화면에서 ‘이 브라우저에 저장’을 켜 두면 여기서 바로 읽습니다. 다른 컴퓨터라면 위의 ‘백업 파일 불러오기’로 백업 파일(평문 또는 암호화)을 여세요.</p><p>이 화면은 상담일지를 고치지 않고 읽기만 합니다. 계획서·평가서는 ⑦에서 ‘양식에 넣기’를 누를 때만 들어갑니다.</p></div>`;$('#lfSummary').innerHTML='';renderMembers();renderGuide(null);return}
  S.memberId=m.id;renderMembers();
  const [s,e]=periodOf(m);$('#lfStart').value=s;$('#lfEnd').value=e;
  const ents=entriesOf(m);S.ents=ents;
@@ -209,6 +239,7 @@ function render(){
  const sum=summarize(ents,s);
  $('#lfSummary').innerHTML=summaryHtml(sum,ents,false);
  $('#lfPrint').innerHTML=printHtml(m,s,e,ents,sum);
+ renderGuide(m);
 }
 function today(){const d=new Date();const z=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`}
 function printHtml(m,s,e,ents,sum){
@@ -242,11 +273,12 @@ function refreshCard(ent){const m=cur();const idx=S.ents.indexOf(ent);const card
  const active=document.activeElement;const keep=active&&card&&card.contains(active)?{row:active.closest('.lf-row')?.dataset.row,f:active.dataset.f,pos:active.selectionStart}:null;
  ent.saved=true;if(card)card.outerHTML=noteCard(ent,idx);
  if(keep?.f){const el=document.querySelector(`.lf-card[data-idx="${idx}"] .lf-row[data-row="${keep.row}"] [data-f="${keep.f}"]`);if(el){el.focus();try{if(keep.pos!=null)el.setSelectionRange(keep.pos,keep.pos)}catch{}}}
- const [s,e]=periodOf(m);const sum=summarize(S.ents,s);$('#lfSummary').innerHTML=summaryHtml(sum,S.ents,false);$('#lfPrint').innerHTML=printHtml(m,s,e,S.ents,sum)}
+ const [s,e]=periodOf(m);const sum=summarize(S.ents,s);$('#lfSummary').innerHTML=summaryHtml(sum,S.ents,false);$('#lfPrint').innerHTML=printHtml(m,s,e,S.ents,sum);renderGuide(m)}
 function onClick(ev){
  const st=ev.target.closest('[data-step]');if(st){S.step=Number(st.dataset.step);try{sessionStorage.setItem('lf_step',String(S.step))}catch{}render();window.scrollTo(0,0);return}
  const b=ev.target.closest('[data-act]');if(!b)return;const act=b.dataset.act;const m=cur();
  if(act==='print'){window.print();return}
+ if(act==='guide-hide'||act==='guide-show'){try{localStorage.setItem('lf_guide_hidden',act==='guide-hide'?'1':'0')}catch{}renderGuide(cur());return}
  if(act==='load-backup'){$('#lfBackupFile').click();return}
  if(act==='sheet-import'){$('#lfSheetFile').click();return}
  if(act==='sheet-export'){exportSheet();return}
