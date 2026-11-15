@@ -142,3 +142,7 @@ select:focus,input:focus{outline:2px solid var(--primary-line);border-color:var(
 .lf-goalchip{font-size:12px;padding:1px 8px;border-radius:999px;background:var(--primary-soft);color:var(--primary)}
 @media (max-width:640px){.lf-grid{grid-template-columns:1fr 1fr}.lf-grid .lf-wide{grid-column:1/-1}.lf-calc th{width:auto}}
 [hidden]{display:none!important}
+.lf-date-chip{border:0;cursor:pointer;font-family:inherit}
+.lf-date-chip:hover{text-decoration:underline}
+.lf-note-dlg{max-width:640px}
+.lf-note-dlg pre{white-space:pre-wrap;font:inherit;font-size:14px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:8px;padding:10px;max-height:60vh;overflow:auto}

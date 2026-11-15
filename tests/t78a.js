@@ -130,6 +130,14 @@ const fire=(w,el,type)=>el.dispatchEvent(new w.Event(type,{bubbles:true}));
  {const w2=await boot({[OLD_KEY]:JSON.stringify(old)});w2.document.querySelector('[data-step="4"]').click();
  w2.document.querySelector('[data-sact="import-old"]').click();const S2=w2.LogSteps;
  ok(S2.goals().length===1&&S2.goals()[0].src==='old'&&S2.goals()[0].long==='옛 장기목표','평가 먼저: 기존 계획서 목표 가져오기');}
+ // 근거 날짜를 누르면 그 날 일지
+ L.goStep(5);const chip=d.querySelector('[data-sact="show-note"]');ok(!!chip,'근거 날짜는 누를 수 있음');
+ chip.click();const dlg=d.getElementById('lfNoteDlg');ok(dlg&&/복약 점검표를 함께 확인함/.test(dlg.textContent),'근거 날짜를 누르면 그 날 일지가 열림');
+ // 일지끼리 맞지 않아 보이는 곳
+ {const n2=JSON.parse(JSON.stringify(old));n2.members[0].notes=[{date:'2026-05-03',topic:'복약',content:'복약을 거부함.'},{date:'2026-05-06',topic:'복약',content:'복약을 스스로 잘 함. 점검표를 함께 확인함.'},{date:'2026-07-01',topic:'복약',content:'복약을 거부함.'}];
+  const w3=await boot({[OLD_KEY]:JSON.stringify(n2)});w3.LogFirst.goStep(7);const cf=w3.LogSteps.conflicts();
+  ok(cf.length===1&&cf[0].dates.join()==='2026-05-03,2026-05-06','7일 안의 거부↔잘 함을 맞지 않는 곳으로 보여 줌');
+  ok(/일지끼리 맞지 않아 보임/.test(w3.document.querySelector('#lfViewX').textContent),'최종 검토에 표시')}
  // 번호 묶기
  ok(S.compactNos([1,2,3,5,7,8])==='1-3, 5, 7-8'&&S.parseNos('#1, 3-5').join()==='1,3,4,5','줄 번호 묶기·풀기');
  console.log(`결과: 통과 ${pass} / 실패 ${fail}`);process.exit(fail?1:0);

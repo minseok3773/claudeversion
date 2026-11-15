@@ -25,7 +25,7 @@ function uid(){return 'g'+Date.now().toString(36)+Math.random().toString(36).sli
 // 번호는 화면에 보이는 순서(날짜순). 근거는 번호가 아니라 날짜로 저장해, 정리표가 바뀌어도 어긋나지 않게 한다.
 function facts(){
  const out=[];let no=0;
- for(const e of (L()._state.ents||[]))e.rows.forEach((r,j)=>{no++;out.push({no,date:e.date,key:e.key,j,topic:clean(e.note?.topic||e.note?.title),area:r.area,kind:r.kind,act:r.act,voice:r.voice,risk:r.risk,sick:r.sick,confirmed:e.confirmed})});
+ for(const e of (L()._state.ents||[]))e.rows.forEach((r,j)=>{no++;out.push({no,date:e.date,key:e.key,j,topic:clean(e.note?.topic||e.note?.title),text:L().noteText(e.note||{}),area:r.area,kind:r.kind,act:r.act,voice:r.voice,risk:r.risk,sick:r.sick,confirmed:e.confirmed})});
  return out;
 }
 const isPerf=f=>L().COUNTS.has(f.kind);
@@ -275,7 +275,7 @@ function aiPanel(kind){
 function fieldBlock(f){
  const info=sentenceInfo(f.key);const v=getVal(f.key);const shortBad=shortProblem(f.key);
  const chips=info.map((x,j)=>`<li class="${x.none||x.nums.length?'bad':''}"><span class="lf-sent">${esc(x.s)}</span>
-   ${x.dates.length?x.dates.map(d=>`<span class="lf-date-chip">${esc(d.slice(5))}</span>`).join(''):''}
+   ${x.dates.length?x.dates.map(d=>`<button type="button" class="lf-date-chip" data-sact="show-note" data-date="${esc(d)}" title="이 날 일지 보기">${esc(d.slice(5))}</button>`).join(''):''}
    ${x.self?'<span class="lf-date-chip self">직접 확인함</span>':''}
    ${x.none?`<span class="lf-flag">근거 없음</span><button class="lf-link" data-sact="self-ok" data-key="${esc(f.key)}" data-s="${j}">직접 확인함</button>`:''}
    ${x.nums.length?`<span class="lf-flag">숫자 다름: ${esc(x.nums.join(', '))}</span>`:''}</li>`).join('');
@@ -324,6 +324,14 @@ function render6(){
  ${aiPanel('eval')}${goalHtml}
  <section class="lf-panel">${fields.filter(f=>f.goal==null).map(fieldBlock).join('')}</section>${stepNav(5,7)}`;
 }
+// 일지끼리 맞지 않아 보이는 곳: 같은 영역에서 7일 안에 '불참·거부'와 '잘 함·꾸준함·스스로' 같은 긍정 기록이 함께 있으면 보여 준다(판단은 담당자).
+const POSITIVE=/잘\s*(?:함|하고|했|지킴|참여)|꾸준|스스로|안정적|규칙적|빠짐없이|성실/;
+function conflicts(){const f=facts();const out=[];
+ for(let i=0;i<f.length;i++)for(let j=i+1;j<f.length;j++){const a=f[i],b=f[j];if(a.area!==b.area||a.area==='etc')continue;
+  const days=Math.abs(Date.parse(b.date)-Date.parse(a.date))/86400000;if(days>7)continue;
+  const neg=x=>x.kind==='refuse',pos=x=>isPerf(x)&&POSITIVE.test(x.text||x.act||'');
+  if((neg(a)&&pos(b))||(pos(a)&&neg(b)))out.push({area:a.area,dates:[a.date,b.date],text:`${L().AREA_NAME[a.area]}: ${a.date.slice(5)} ‘${clean(a.act)}’ ↔ ${b.date.slice(5)} ‘${clean(b.act)}’`})}
+ return out.slice(0,10)}
 function issues(){
  const out=[];const f=facts();const un=(L()._state.ents||[]).filter(e=>!e.confirmed).length;
  if(un)out.push({step:3,text:`정리표에서 확정하지 않은 일지 ${un}건`});
@@ -332,6 +340,7 @@ function issues(){
  gs.forEach((g,i)=>{if(!g.n)out.push({step:4,text:`목표 ${i+1}: 측정 기준 횟수 없음`});if(clean(g.short)&&!shortHasMeasure(g))out.push({step:5,text:`목표 ${i+1}: 단기목표에 기준 숫자 없음`});if(finalVerdict(g)==='check')out.push({step:6,text:`목표 ${i+1}: 기록 확인 필요`})});
  let none=0,nums=0,empty=0;
  for(const fl of [...planFields(),...evalFields()]){const info=sentenceInfo(fl.key);if(!info.length)empty++;none+=info.filter(x=>x.none).length;nums+=info.filter(x=>x.nums.length).length}
+ for(const c of conflicts())out.push({step:3,text:`일지끼리 맞지 않아 보임 — ${c.text}`,warn:true});
  if(none)out.push({step:5,text:`근거 없음 문장 ${none}개`});
  if(nums)out.push({step:6,text:`숫자 다름 문장 ${nums}개`});
  if(empty)out.push({step:5,text:`비어 있는 칸 ${empty}개`});
@@ -406,6 +415,10 @@ async function encryptBackup(obj,pw){const salt=crypto.getRandomValues(new Uint8
  const base=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:iter,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt']);
  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(JSON.stringify(obj)));return{format:'rehab-enc',version:1,kdf:'PBKDF2-SHA256',iter,salt:toB64(salt),iv:toB64(iv),data:toB64(new Uint8Array(ct))}}
 
+function showNotes(date){const m=L().cur();const list=(m?.notes||[]).filter(n=>n.date===date);let dlg=document.getElementById('lfNoteDlg');
+ if(!dlg){dlg=document.createElement('dialog');dlg.id='lfNoteDlg';dlg.className='lf-dialog lf-note-dlg';document.body.appendChild(dlg)}
+ dlg.innerHTML=`<h2>${esc(date)} 상담일지</h2>${list.map(n=>`<p class="lf-help">${esc(clean(n.topic||n.title)||'')}</p><pre>${esc(L().noteText(n))}</pre>`).join('')||'<p>이 날 일지를 찾지 못했습니다.</p>'}<div class="lf-dialog-btns"><button class="lf-btn primary" data-close>닫기</button></div>`;
+ dlg.querySelector('[data-close]').addEventListener('click',()=>dlg.close());if(dlg.showModal)dlg.showModal();else dlg.setAttribute('open','')}
 // ---------- 동작 ----------
 function rerender(){L().render()}
 // 글 칸을 고친 뒤에는 그 칸의 근거 표시만 다시 그린다(화면 전체를 다시 그리면 바로 누른 단추가 눌리지 않음).
@@ -419,6 +432,7 @@ document.addEventListener('click',async ev=>{
  if(act==='pick'||act==='engine'||act==='consent')return; // change에서 처리
  if(act==='goal-del'){const i=+b.closest('[data-gi]').dataset.gi;goals().splice(i,1);save();rerender();return}
  if(act==='import-old'){const old=L().cur().plan.goals.filter(g=>clean(g.short)||clean(g.long));for(const g of old){if(goals().length>=MAX_GOALS)break;if(goals().some(z=>z.id===g.id))continue;goals().push(normGoal({id:g.id,area:'etc',long:g.long,short:g.short,plan:g.plan,activity:g.activity,src:'old'}))}save();rerender();return}
+ if(act==='show-note'){showNotes(b.dataset.date);return}
  if(act==='self-ok'){const key=b.dataset.key;const s=sentenceInfo(key)[+b.dataset.s]?.s;if(!s)return;const ok=okMap();ok[key]=[...(ok[key]||[]),s];save();rerender();return}
  if(act==='build'){const kind=b.dataset.kind;UI.pending[kind]=masked(kind);rerender();return}
  if(act==='claude-open'){const p=UI.pending[b.dataset.kind];if(!p)return;const text=p.system+'\n\n'+p.prompt;try{await navigator.clipboard.writeText(text);L().notice('보낼 글을 복사했습니다. Claude 창에 붙여 넣으세요.','ok')}catch{L().notice('복사하지 못했습니다. ‘보낼 글 보기’에서 직접 복사하세요.','warn')}
@@ -446,5 +460,5 @@ document.addEventListener('input',ev=>{const t=ev.target;if(!inStep(t))return;
  if(t.dataset.ev==='reason'){const g=goals()[+t.closest('[data-gi]').dataset.gi];if(g){evalOf(g).reason=t.value;save()}}
 });
 
-window.LogSteps={render,printHtml,facts,goals,normGoal,targetOf,shortHasMeasure,evaluate,finalVerdict,resultText,planFields,evalFields,buildPrompt,masked,parseAnswer,applyAnswer,sentenceInfo,issues,applyToMember,planForOld,evalForOld,compactNos,parseNos,setVal,getVal,PARTIAL,VERDICT_TEXT};
+window.LogSteps={conflicts,showNotes,render,printHtml,facts,goals,normGoal,targetOf,shortHasMeasure,evaluate,finalVerdict,resultText,planFields,evalFields,buildPrompt,masked,parseAnswer,applyAnswer,sentenceInfo,issues,applyToMember,planForOld,evalForOld,compactNos,parseNos,setVal,getVal,PARTIAL,VERDICT_TEXT};
 })();
