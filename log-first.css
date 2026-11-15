@@ -185,3 +185,6 @@ body.lf-simple .lf-adv{display:none!important}
 .lf-detail-link{text-align:right;margin:0}
 .lf-back{font-weight:700}
 .lf-small{font-size:13px;padding:5px 10px}
+
+/* v3.26.2 버전 표시(양식 화면과 같은 번호) */
+.lf-ver{align-self:center;font-size:12px;color:#6b7280;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px}

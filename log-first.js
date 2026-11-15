@@ -6,7 +6,7 @@
 (function(){
 const OLD_KEY='sehuim_rehab_offline_v1';
 const SHEET_KEY='rehab_logsheet_v1';
-const RELEASE='3.26.1';
+const RELEASE='3.26.2';
 
 // 이전 화면(app.js NEED_AREAS)과 같은 12개 영역. 거주환경의 '시설·방에'는 일지마다 나와 뺐다.
 const AREAS=[
@@ -345,6 +345,7 @@ function desktopShortcut(){
  dlg.querySelector('[data-install]')?.addEventListener('click',async()=>{const e=installEvt;installEvt=null;dlg.close();if(!e)return;try{await e.prompt()}catch{}});
  if(dlg.showModal)dlg.showModal();else dlg.setAttribute('open','')}
 function init(){
+ {const v=document.getElementById('lfVer');if(v)v.textContent='v'+RELEASE}
  S.old=readOld();S.sheet=readSheet();S.memberId=S.old?.memberId||'';
  try{const v=Number(sessionStorage.getItem('lf_step'));if(v===1||(v>=3&&v<=7))S.step=v}catch{}
  if(!S.old)notice('');
