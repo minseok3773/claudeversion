@@ -6,7 +6,7 @@
 (function(){
 const OLD_KEY='sehuim_rehab_offline_v1';
 const SHEET_KEY='rehab_logsheet_v1';
-const RELEASE='3.25.0';
+const RELEASE='3.26.0';
 
 // 이전 화면(app.js NEED_AREAS)과 같은 12개 영역. 거주환경의 '시설·방에'는 일지마다 나와 뺐다.
 const AREAS=[
@@ -127,7 +127,7 @@ function summarize(entries,start){
 }
 
 // ---------- 화면 ----------
-const S={old:null,fromBackup:false,sheet:emptySheet(),memberId:'',saveOk:true,step:3};
+const S={old:null,fromBackup:false,sheet:emptySheet(),memberId:'',saveOk:true,step:1};
 const $=s=>document.querySelector(s);
 function members(){return (S.old?.members||[]).filter(m=>m&&m.id)}
 function cur(){return members().find(m=>m.id===S.memberId)||members()[0]||null}
@@ -211,6 +211,7 @@ function stepStatus(m){
 function guideHidden(){try{return localStorage.getItem('lf_guide_hidden')==='1'}catch{return false}}
 function renderGuide(m){
  const el=$('#lfGuide');if(!el)return;
+ if(S.step===1&&m){el.hidden=true;return}
  const steps=`<ol class="lf-howto">
    <li><b>상담일지 넣기</b> — <a href="forms.html">양식 보기·인쇄</a> 화면에서 회원을 만들고 상담일지를 넣습니다(한글 붙여넣기 가능). 이미 있으면 건너뜁니다.</li>
    <li><b>③ 일지 정리표</b> — 일지마다 영역과 구분(실시·참여·권유·불참)을 확인하고 '확정'을 누릅니다.</li>
@@ -229,6 +230,7 @@ function render(){
  // ④~⑦ 단계 화면은 log-steps.js가 그린다.
  document.querySelectorAll('[data-step]').forEach(b=>{const on=Number(b.dataset.step)===S.step;b.classList.toggle('now',on);if(on)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current')});
  const v3=$('#lfView3'),vx=$('#lfViewX');
+ document.body.classList.toggle('lf-simple',S.step===1);
  if(S.step!==3&&m&&window.LogSteps){S.memberId=m.id;renderMembers();const [s,e]=periodOf(m);$('#lfStart').value=s;$('#lfEnd').value=e;S.ents=entriesOf(m);v3.hidden=true;vx.hidden=false;window.LogSteps.render(S.step);$('#lfPrint').innerHTML=window.LogSteps.printHtml?window.LogSteps.printHtml(S.step):'';renderGuide(m);return}
  v3.hidden=false;vx.hidden=true;vx.innerHTML='';
  if(!m){$('#lfNotes').innerHTML=`<div class="lf-empty"><h2>회원 기록을 찾지 못했습니다</h2><p><a class="lf-btn primary" href="forms.html">양식 보기·인쇄 화면에서 회원·상담일지 넣기 →</a></p><p>그 화면에서 ‘이 브라우저에 저장’을 켜 두면 여기서 바로 읽습니다. 다른 컴퓨터라면 위의 ‘백업 파일 불러오기’로 백업 파일(평문 또는 암호화)을 여세요.</p><p>이 화면은 상담일지를 고치지 않고 읽기만 합니다. 계획서·평가서는 ⑦에서 ‘양식에 넣기’를 누를 때만 들어갑니다.</p></div>`;$('#lfSummary').innerHTML='';renderMembers();renderGuide(null);return}
@@ -339,7 +341,7 @@ async function desktopShortcut(){
  dlg.querySelector('[data-close]').addEventListener('click',()=>dlg.close());if(dlg.showModal)dlg.showModal();else dlg.setAttribute('open','')}
 function init(){
  S.old=readOld();S.sheet=readSheet();S.memberId=S.old?.memberId||'';
- try{const v=Number(sessionStorage.getItem('lf_step'));if(v>=3&&v<=7)S.step=v}catch{}
+ try{const v=Number(sessionStorage.getItem('lf_step'));if(v===1||(v>=3&&v<=7))S.step=v}catch{}
  if(!S.old)notice('');
  document.addEventListener('change',onChange);document.addEventListener('click',onClick);document.addEventListener('input',onInput);
  window.addEventListener('storage',ev=>{if(ev.key===OLD_KEY&&!S.fromBackup){S.old=readOld();render()}if(ev.key===SHEET_KEY){S.sheet=readSheet();render()}});
