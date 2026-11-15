@@ -1,0 +1,99 @@
+/* v3.25.0 일지 정리표 화면 — 이전 화면과 같은 맑은 블루 색 */
+:root{
+ --bg:#E9EDF2;--surface:#FFFFFF;--surface-2:#FAFBFC;--line:#D9DDE3;--line-soft:#E7EAEE;
+ --text:#15191E;--muted:#646B75;--primary:#0D74CE;--primary-hover:#0B62B0;--primary-soft:#EAF4FE;--primary-line:#BEDDF8;
+ --ok:#18794E;--ok-soft:#E9F6EE;--warn:#B54708;--warn-soft:#FEF3E7;--risk:#C4320A;--risk-soft:#FFF0EB;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:15px/1.55 "Pretendard Variable",Pretendard,system-ui,-apple-system,"Malgun Gothic",sans-serif}
+.lf-shell{max-width:1320px;margin:0 auto;padding:16px}
+.lf-head{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;padding:14px 18px}
+.lf-head h1{margin:0;font-size:20px}
+.lf-head p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.lf-steps{display:flex;flex-wrap:wrap;gap:6px;list-style:none;padding:0;margin:12px 0}
+.lf-steps li{display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:999px;background:var(--surface);border:1px solid var(--line-soft);font-size:13px;color:var(--muted)}
+.lf-steps li span{font-weight:700}
+.lf-steps li.now{background:var(--primary);border-color:var(--primary);color:#fff}
+.lf-steps li.later{opacity:.6}
+.lf-steps li.later::after{content:"준비 중";font-size:11px;margin-left:2px}
+.lf-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;padding:10px 14px}
+.lf-bar label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.lf-grow{flex:1}
+.lf-tilde{color:var(--muted)}
+select,input{font:inherit;color:inherit;border:1px solid var(--line);border-radius:8px;background:#fff;padding:6px 8px;min-width:0}
+select:focus,input:focus{outline:2px solid var(--primary-line);border-color:var(--primary)}
+.lf-btn{display:inline-flex;align-items:center;justify-content:center;font:inherit;font-size:14px;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--text);cursor:pointer;text-decoration:none;white-space:nowrap}
+.lf-btn:hover{background:#F2F4F7}
+.lf-btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.lf-btn.primary:hover{background:var(--primary-hover)}
+.lf-btn.small{padding:4px 10px;font-size:13px}
+.lf-link{font:inherit;font-size:13px;background:none;border:0;color:var(--primary);cursor:pointer;padding:2px 4px}
+.lf-notice{display:none;margin:10px 0 0;padding:10px 14px;border-radius:10px;font-size:14px}
+.lf-notice.show{display:block;background:var(--primary-soft);border:1px solid var(--primary-line)}
+.lf-notice.show.warn{background:var(--warn-soft);border-color:#F8D3AE;color:var(--warn)}
+.lf-notice.show.ok{background:var(--ok-soft);border-color:#B7E1C8;color:var(--ok)}
+.lf-layout{display:grid;grid-template-columns:minmax(0,1fr) 460px;gap:14px;margin-top:12px;align-items:start}
+.lf-notes,.lf-summary{min-width:0}
+.lf-summary{position:sticky;top:12px;background:var(--surface);border:1px solid var(--line-soft);border-radius:14px;padding:14px 16px}
+.lf-summary h2{margin:0 0 4px;font-size:16px}
+.lf-meta{margin:0 0 8px;font-size:13px;color:var(--muted)}
+.lf-help{font-size:12.5px;color:var(--muted);margin:10px 0}
+.lf-warn{color:var(--risk)}
+.lf-tablewrap{overflow-x:auto}
+.lf-table{border-collapse:collapse;width:100%;font-size:13px}
+.lf-table th,.lf-table td{border:1px solid var(--line-soft);padding:5px 6px;text-align:center;vertical-align:top}
+.lf-table th{background:var(--surface-2);font-weight:600;word-break:keep-all}
+.lf-summary .lf-table th,.lf-summary .lf-table td{padding:5px 4px}
+.lf-table tr>th:first-child{text-align:left;white-space:nowrap}
+.lf-table small{display:block;font-weight:400;color:var(--muted);font-size:11px}
+.lf-notes{display:flex;flex-direction:column;gap:10px}
+.lf-empty{background:var(--surface);border:1px dashed var(--line);border-radius:14px;padding:20px}
+.lf-empty h2{margin:0 0 6px;font-size:17px}
+.lf-card{background:var(--surface);border:1px solid var(--line-soft);border-left:4px solid #F0B429;border-radius:12px;padding:12px 14px}
+.lf-card.confirmed{border-left-color:var(--ok)}
+.lf-card-head{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.lf-date{font-variant-numeric:tabular-nums}
+.lf-topic{color:var(--muted)}
+.lf-card-btns{display:flex;gap:8px;align-items:center}
+.lf-badge{font-size:12px;padding:2px 8px;border-radius:999px}
+.lf-badge.ok{background:var(--ok-soft);color:var(--ok)}
+.lf-badge.wait{background:var(--warn-soft);color:var(--warn)}
+.lf-src{margin:6px 0}
+.lf-src summary{cursor:pointer;color:var(--primary);font-size:13px}
+.lf-src pre{white-space:pre-wrap;font:inherit;font-size:13.5px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:8px;padding:10px;margin:6px 0 0;max-height:320px;overflow:auto}
+.lf-row{display:grid;grid-template-columns:150px 140px minmax(0,1fr) minmax(0,1fr);gap:8px;padding:8px 0;border-top:1px solid var(--line-soft)}
+.lf-row.risk{background:var(--risk-soft);border-radius:8px;padding:8px}
+.lf-f{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}
+.lf-f select,.lf-f input{font-size:14px;color:var(--text);width:100%}
+.lf-flags{grid-column:1/-1;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.lf-check{display:flex;align-items:center;gap:5px;font-size:13px}
+.lf-check.on{color:var(--risk);font-weight:600}
+.lf-check input{width:auto}
+.lf-card-foot{display:flex;gap:10px;padding-top:6px}
+.lf-dialog{border:1px solid var(--line);border-radius:14px;padding:18px;max-width:360px;width:calc(100% - 32px)}
+.lf-dialog h2{margin:0 0 6px;font-size:17px}
+.lf-dialog input{width:100%;margin:8px 0 12px}
+.lf-dialog-btns{display:flex;justify-content:flex-end;gap:8px}
+.lf-print{display:none}
+@media (max-width:980px){
+ .lf-layout{grid-template-columns:1fr}
+ .lf-summary{position:static;order:-1}
+}
+@media (max-width:640px){
+ .lf-shell{padding:10px}
+ .lf-row{grid-template-columns:1fr 1fr}
+ .lf-act,.lf-voice{grid-column:1/-1}
+ .lf-head{flex-direction:column;align-items:flex-start}
+}
+@media print{
+ body{background:#fff;font-size:11pt}
+ .lf-shell>*:not(.lf-print){display:none!important}
+ .lf-print{display:block}
+ .lf-print h1{font-size:16pt;margin:0 0 4pt}
+ .lf-print h2{font-size:12pt;margin:12pt 0 4pt}
+ .lf-print .lf-table{font-size:9.5pt}
+ .lf-print .lf-table td{text-align:left}
+ .lf-print tr.un td{color:#555}
+ .lf-print .lf-table tr{break-inside:avoid}
+}
