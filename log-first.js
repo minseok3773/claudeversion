@@ -319,11 +319,24 @@ async function importSheet(f){
   saveSheet();notice(`정리표 ${n}건을 불러왔습니다.`,'ok');render();
  }catch(e){notice(e.message||'정리표 백업을 읽지 못했습니다.','warn')}
 }
-// 바탕화면 바로가기(Windows .url 파일): 두 번 누르면 이 사이트가 기본 브라우저로 열린다.
-function desktopShortcut(){const base=location.origin.startsWith('http')?location.origin+'/':location.href;
- const text=['[InternetShortcut]','URL='+base,'IconFile='+base+'favicon.ico','IconIndex=0',''].join('\r\n');
- const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/octet-stream'}));a.download='재활계획서 재활평가서.url';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
- notice('바로가기 파일을 내려받았습니다. 내려받기 폴더의 ‘재활계획서 재활평가서’ 파일을 바탕화면으로 끌어다 놓으세요. Chrome·Edge 주소창 오른쪽의 ‘앱 설치’ 단추로 앱처럼 설치해도 됩니다.','ok')}
+// 바탕화면 아이콘: 바로가기 파일(.url)은 Chrome·Edge가 위험 파일로 막아 '.download'로 남는 경우가 있어 쓰지 않는다.
+// 대신 브라우저의 '앱 설치'를 띄운다(설치하면 문서 모양 아이콘이 바탕화면·시작 메뉴에 생김). 설치 창을 띄울 수 없으면 직접 하는 순서를 보여 준다.
+let installEvt=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e});
+window.addEventListener('appinstalled',()=>{installEvt=null;notice('설치했습니다. 바탕화면의 파란 문서 모양 ‘재활기록’ 아이콘으로 여세요.','ok')});
+function isInstalled(){try{return window.matchMedia('(display-mode: standalone)').matches}catch{return false}}
+async function desktopShortcut(){
+ if(isInstalled()){notice('이미 앱으로 설치되어 열려 있습니다. 바탕화면의 ‘재활기록’ 아이콘으로 열면 됩니다.','ok');return}
+ if(installEvt){const e=installEvt;installEvt=null;try{await e.prompt();const r=await e.userChoice;if(r?.outcome==='accepted')return}catch{}}
+ let dlg=document.getElementById('lfInstall');
+ if(!dlg){dlg=document.createElement('dialog');dlg.id='lfInstall';dlg.className='lf-dialog lf-install';document.body.appendChild(dlg)}
+ dlg.innerHTML=`<h2>바탕화면에 아이콘 놓기</h2>
+  <p class="lf-help">쓰는 브라우저에 맞는 순서를 따라 하세요. 한 번만 하면 됩니다.</p>
+  <h3>Edge</h3><ol><li>오른쪽 위 <b>…</b>(점 세 개)를 누릅니다.</li><li><b>앱</b> → <b>이 사이트를 앱으로 설치</b>를 누릅니다.</li><li><b>설치</b>를 누르고, 묻는 창이 나오면 <b>바탕 화면에 바로 가기 만들기</b>를 고릅니다.</li></ol>
+  <h3>Chrome</h3><ol><li>오른쪽 위 <b>⋮</b>(점 세 개)를 누릅니다.</li><li><b>전송, 저장, 공유</b> → <b>페이지를 앱으로 설치</b>(또는 <b>바로가기 만들기</b>)를 누릅니다.</li><li>바로가기 만들기라면 <b>창으로 열기</b>에 표시하고 <b>만들기</b>를 누릅니다.</li></ol>
+  <p class="lf-help">주소창 오른쪽 끝에 모니터 모양 <b>앱 설치</b> 단추가 보이면 그것을 눌러도 됩니다. 설치하면 바탕화면에 파란 문서 모양 ‘재활기록’ 아이콘이 생깁니다.</p>
+  <div class="lf-dialog-btns"><button class="lf-btn primary" data-close>닫기</button></div>`;
+ dlg.querySelector('[data-close]').addEventListener('click',()=>dlg.close());if(dlg.showModal)dlg.showModal();else dlg.setAttribute('open','')}
 function init(){
  S.old=readOld();S.sheet=readSheet();S.memberId=S.old?.memberId||'';
  try{const v=Number(sessionStorage.getItem('lf_step'));if(v>=3&&v<=7)S.step=v}catch{}

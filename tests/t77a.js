@@ -62,6 +62,7 @@ const fire=(w,el,type)=>el.dispatchEvent(new w.Event(type,{bubbles:true}));
  ok(/확정 0\/6/.test(d.querySelector('[data-step="3"]').textContent),'단계 단추에 진행 상황');
  ok(d.querySelector('a[href="forms.html"]'),'양식 보기·인쇄(이전 화면)로 가는 길');
  ok(d.querySelector('[data-act="desktop"]')&&d.querySelector('link[rel="manifest"]'),'바탕화면 바로가기 단추와 앱 설치 정보');
+ d.querySelector('[data-act="desktop"]').click();ok(/바탕화면에 아이콘 놓기/.test(d.getElementById('lfInstall')?.textContent||'')&&!d.querySelector('a[download$=".url"]'),'설치 창을 못 띄우면 직접 하는 순서(바로가기 파일은 내려받지 않음)');d.getElementById('lfInstall').close?.();
 
  // 구분 바꾸기 → 저장·집계 반영
  const c3=d.querySelectorAll('.lf-card')[2];const sel=c3.querySelector('select[data-f="kind"]');sel.value='do';fire(w,sel,'change');
