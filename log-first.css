@@ -159,3 +159,4 @@ select:focus,input:focus{outline:2px solid var(--primary-line);border-color:var(
 .lf-steps .lf-st{font-size:11px;opacity:.85;margin-left:2px}
 .lf-steps button.ok:not(.now){border-color:#B7E1C8;color:var(--ok)}
 .lf-summary:empty{display:none}
+.lf-head-btns{display:flex;gap:8px;flex-wrap:wrap}

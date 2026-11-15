@@ -278,6 +278,7 @@ function onClick(ev){
  const st=ev.target.closest('[data-step]');if(st){S.step=Number(st.dataset.step);try{sessionStorage.setItem('lf_step',String(S.step))}catch{}render();window.scrollTo(0,0);return}
  const b=ev.target.closest('[data-act]');if(!b)return;const act=b.dataset.act;const m=cur();
  if(act==='print'){window.print();return}
+ if(act==='desktop'){desktopShortcut();return}
  if(act==='guide-hide'||act==='guide-show'){try{localStorage.setItem('lf_guide_hidden',act==='guide-hide'?'1':'0')}catch{}renderGuide(cur());return}
  if(act==='load-backup'){$('#lfBackupFile').click();return}
  if(act==='sheet-import'){$('#lfSheetFile').click();return}
@@ -318,6 +319,11 @@ async function importSheet(f){
   saveSheet();notice(`정리표 ${n}건을 불러왔습니다.`,'ok');render();
  }catch(e){notice(e.message||'정리표 백업을 읽지 못했습니다.','warn')}
 }
+// 바탕화면 바로가기(Windows .url 파일): 두 번 누르면 이 사이트가 기본 브라우저로 열린다.
+function desktopShortcut(){const base=location.origin.startsWith('http')?location.origin+'/':location.href;
+ const text=['[InternetShortcut]','URL='+base,'IconFile='+base+'favicon.ico','IconIndex=0',''].join('\r\n');
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'application/octet-stream'}));a.download='재활계획서 재활평가서.url';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);
+ notice('바로가기 파일을 내려받았습니다. 내려받기 폴더의 ‘재활계획서 재활평가서’ 파일을 바탕화면으로 끌어다 놓으세요. Chrome·Edge 주소창 오른쪽의 ‘앱 설치’ 단추로 앱처럼 설치해도 됩니다.','ok')}
 function init(){
  S.old=readOld();S.sheet=readSheet();S.memberId=S.old?.memberId||'';
  try{const v=Number(sessionStorage.getItem('lf_step'));if(v>=3&&v<=7)S.step=v}catch{}

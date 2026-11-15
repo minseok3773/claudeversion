@@ -61,6 +61,7 @@ const fire=(w,el,type)=>el.dispatchEvent(new w.Event(type,{bubbles:true}));
  const g=d.querySelector('#lfGuide');ok(g&&!g.hidden&&/지금 할 일/.test(g.textContent)&&/일지 6건을 확인하고 확정하기/.test(g.textContent),'첫 화면에 쓰는 순서와 지금 할 일');
  ok(/확정 0\/6/.test(d.querySelector('[data-step="3"]').textContent),'단계 단추에 진행 상황');
  ok(d.querySelector('a[href="forms.html"]'),'양식 보기·인쇄(이전 화면)로 가는 길');
+ ok(d.querySelector('[data-act="desktop"]')&&d.querySelector('link[rel="manifest"]'),'바탕화면 바로가기 단추와 앱 설치 정보');
 
  // 구분 바꾸기 → 저장·집계 반영
  const c3=d.querySelectorAll('.lf-card')[2];const sel=c3.querySelector('select[data-f="kind"]');sel.value='do';fire(w,sel,'change');
