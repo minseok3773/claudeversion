@@ -38,7 +38,7 @@ function areaStats(){
  return Object.values(by).filter(a=>a.area!=='etc').sort((p,q)=>q.total-p.total);
 }
 // 측정할 행동 기본값: 실적 줄에서 가장 많은 상담주제(예: ‘복약 점검’). 없으면 ‘영역 지원 참여’.
-function topAct(area){const c={};for(const f of facts())if(f.area===area&&isPerf(f)&&f.topic&&f.topic.length<=20)c[f.topic]=(c[f.topic]||0)+1;return Object.entries(c).sort((a,b)=>b[1]-a[1])[0]?.[0]||`${L().AREA_NAME[area]} 지원 참여`}
+function topAct(area){const c={};for(const f of facts()){const t=clean(String(f.topic||'').replace(/\s*\d+\s*회기\s*$/,''));if(f.area===area&&isPerf(f)&&t&&t.length<=20)c[t]=(c[t]||0)+1}return Object.entries(c).sort((a,b)=>b[1]-a[1])[0]?.[0]||`${L().AREA_NAME[area]} 지원 참여`}
 
 // ---------- 목표 ----------
 function goals(){const x=ms();if(!x)return[];if(!Array.isArray(x.goals))x.goals=[];return x.goals}
@@ -150,7 +150,10 @@ const STYLE=[
  '2. 있었던 사실·평가는 "~함/~임"으로 끝맺는다.',
  '3. 한 문장에 한 가지 내용만 쓴다.',
  '4. 사건을 늘어놓지 말고 평가어로 묶는다.',
- '5. 아래 정리표에 없는 내용은 쓰지 않는다. 각 문장 끝에 근거 줄 번호를 (근거 3, 7)처럼 붙인다. "해당사항 없음"에는 붙이지 않는다.'
+ '5. 내용은 아래 [상담일지 원문]에서만 가져온다. 일지에 없는 내용은 쓰지 않는다.',
+ '6. 각 문장 끝에 근거가 된 정리표 번호를 (근거 3, 7)처럼 붙인다. 정리표 번호는 일지마다 머리줄에 적혀 있다. "해당사항 없음"에는 붙이지 않는다.',
+ '7. 정리표는 프로그램이 낱말로 나눈 색인이다. 영역·구분이 일지 원문과 다르면 일지 원문을 따른다.',
+ '8. 회원·가족이 일지에서 직접 말한 바람과 어려움은 빠뜨리지 않는다.'
 ];
 function systemText(kind){return [`너는 정신재활시설의 경력 많은 정신건강사회복지사로서 회원의 재활${kind==='eval'?'평가서':kind==='both'?'계획서와 재활평가서':'계획서'} 칸을 쓴다.`,'문체 규칙',...STYLE,'답은 칸마다 [칸 이름] 줄을 먼저 쓰고 그 아래에 문장만 쓴다. 칸 이름은 요청에 적힌 그대로 쓴다. 다른 설명, 인사말, 코드 블록은 쓰지 않는다.'].join('\n')}
 function factLine(f){return `#${f.no} ${f.date.slice(0,7)} | ${L().AREA_NAME[f.area]} | ${L().KIND_NAME[f.kind]}${f.sick?'(건강 사유)':''} | ${clean(f.act)||'-'}${f.voice&&!f.risk?` | 회원 말 "${clean(f.voice)}"`:''}${f.risk?' | 위험 확인 기록(회원 말 인용 금지)':''}`}
@@ -163,8 +166,18 @@ function buildPrompt(kind){
   if(clean(g.long))base.push(`  장기목표: ${clean(g.long)}`);if(kind==='eval'&&clean(g.short))base.push(`  단기목표: ${clean(g.short)}`);
   return base.join('\n')});
  const sec=fields.map(x=>`[${x.label}]\n- 할 일: ${x.ask}\n- 참고 줄: ${compactNos(x.refs)}`);
- const prompt=[`평가기간: ${s||'-'} ~ ${e||'-'}`,'',`정리표(담당자가 상담일지에서 확인한 사실, ${f.length}줄)`,...f.map(factLine),'',goalLines.length?'목표':'',...goalLines,'','아래 칸을 차례대로 쓴다.',...sec].filter((x,i,a)=>!(x===''&&a[i-1]==='')).join('\n');
+ // v3.26.2: 요청문에 상담일지 원문을 넣는다. 예전에는 정리표 줄(일지 첫 문장이나 상담주제만)만 보내 핵심 욕구·변화가 빠지고,
+ // 낱말로 잘못 나눈 영역(예: 미술학원→음주)을 AI가 그대로 믿었다. 원문도 아래 masked()에서 가명 처리한다.
+ const logs=noteBlocks(f);
+ const prompt=[`평가기간: ${s||'-'} ~ ${e||'-'}`,'',`[상담일지 원문] 평가기간 상담일지 ${logs.length}건 전문. 모든 내용의 근거는 여기임.`,...logs,'',`[정리표] 프로그램이 일지를 영역별로 나눈 색인, ${f.length}줄. 번호는 근거 표시와 횟수 계산에 씀.`,...f.map(factLine),'',goalLines.length?'[목표] 담당자가 정한 목표와 프로그램이 센 횟수':'',...goalLines,'','아래 칸을 차례대로 쓴다.',...sec].filter((x,i,a)=>!(x===''&&a[i-1]==='')).join('\n');
  return{system:systemText(kind),prompt,fields};
+}
+function noteBlocks(f){
+ const nos={};for(const x of f)(nos[x.key]=nos[x.key]||[]).push(x.no);
+ return (L()._state.ents||[]).map((e,i)=>{const t=clean(L().noteText(e.note||{}));const topic=clean(e.note?.topic||e.note?.title);
+  // 위험 관련 회원 말은 문서에 인용되지 않게 따옴표 안만 가린다(위기 상담 사실은 남김).
+  const safe=t.replace(/["“]([^"”\n]{1,200})["”]|[‘']([^’'\n]{1,200})[’']/g,(a,x,y)=>L().RISK_RE.test(x||y)?'"(위험 관련 발언 — 인용 금지)"':a);
+  return `--- 일지 ${i+1} | ${e.date}${topic?' | '+topic:''} | 정리표 #${compactNos(nos[e.key]||[])} ---\n${safe||'(내용 없음)'}`});
 }
 function compactNos(a){const s=[...new Set(a)].sort((x,y)=>x-y);if(!s.length)return '없음';const out=[];let st=s[0],pv=s[0];for(const n of s.slice(1)){if(n===pv+1){pv=n;continue}out.push(st===pv?`${st}`:`${st}-${pv}`);st=pv=n}out.push(st===pv?`${st}`:`${st}-${pv}`);return out.join(', ')}
 // 가명 처리: 회원별·공통 가릴 이름 + 지금 프로그램과 같은 규칙
@@ -366,8 +379,16 @@ function render7(){
 }
 // ---------- 간단히: 한 화면에서 끝내기 ----------
 // 처음 쓰는 직원도 설명서 없이: ① 회원·기간 확인 ② 자동 작성 ③ 빨간 곳만 확인하고 양식에 넣기.
+// v3.26.2: 자동 목표 고르기 보완. 같은 일지에서 나온 영역(예: 요리 프로그램 하루가 신체 건강·생활관리 둘로 나뉨)을 목표 둘로 겹쳐 잡지 않고,
+// 기록이 1건뿐인 영역은 고르지 않으며, 회원이 직접 말한 바람(회원 말)이 있는 영역을 앞에 둔다.
 function autoGoals(){if(goals().length)return;
- for(const a of areaStats().filter(a=>a.perf>0).sort((p,q)=>q.perf-p.perf||q.total-p.total).slice(0,MAX_GOALS)){const b=baseline(a.area);goals().push(normGoal({area:a.area,behavior:topAct(a.area),per:'month',n:b?Math.max(1,Math.ceil(b.perMonth+0.5)):1}))}
+ const f=facts();const used=new Set();
+ const cand=areaStats().filter(a=>a.perf>0&&a.total>=2).sort((p,q)=>(q.perf+q.voice)-(p.perf+p.voice)||q.total-p.total);
+ for(const a of cand){if(goals().length>=MAX_GOALS)break;
+  const days=[...new Set(f.filter(x=>x.area===a.area&&isPerf(x)).map(x=>x.key))];
+  if(days.length&&days.filter(k=>used.has(k)).length*2>=days.length)continue;
+  f.filter(x=>x.area===a.area).forEach(x=>used.add(x.key));
+  const b=baseline(a.area);goals().push(normGoal({area:a.area,behavior:topAct(a.area),per:'month',n:b?Math.max(1,Math.ceil(b.perMonth+0.5)):1}))}
  save()}
 function autoConfirm(){const m=L().cur();for(const e of (L()._state.ents||[]))if(!e.confirmed){e.confirmed=true;const ms_=L().msheet(m.id);ms_.notes[e.key]={rows:e.rows.map(L().normRow),confirmed:true,updatedAt:new Date().toISOString(),auto:true}}save()}
 function written(){return [...planFields(),...evalFields()].some(f=>clean(getVal(f.key)))}

@@ -70,8 +70,9 @@ const fire=(w,el,type)=>el.dispatchEvent(new w.Event(type,{bubbles:true}));
  ok(!/김철수|박순자|새희망둥지/.test(mp.prompt),'요청문에 등록 이름·시설 이름 없음(가명 처리)');
  ok(/가명A|가명B/.test(mp.prompt),'가명으로 바뀜');
  ok(!/죽고 싶다/.test(mp.prompt),'위험 기록의 회원 말은 요청문에 넣지 않음');
- ok(!/점검표를 함께 확인함\. "약 먹으면/.test(mp.prompt)&&!/\[상담내용\]/.test(mp.prompt),'일지 원문은 보내지 않음(정리표 줄만)');
- ok(mp.system.length<4000&&/근거 줄 번호/.test(mp.system),'시스템 지시는 짧고 근거 번호 규칙 포함');
+ ok(/\[상담일지 원문\]/.test(mp.prompt)&&/--- 일지 1 \| \d{4}-\d{2}-\d{2}/.test(mp.prompt)&&/정리표 #\d/.test(mp.prompt),'v3.26.2: 상담일지 원문을 정리표 번호와 함께 보냄');
+ ok(mp.prompt.indexOf('[상담일지 원문]')<mp.prompt.indexOf('[정리표]'),'v3.26.2: 일지 원문이 정리표보다 먼저 나옴');
+ ok(mp.system.length<4000&&/근거가 된 정리표 번호/.test(mp.system)&&/상담일지 원문\]에서만/.test(mp.system),'시스템 지시는 짧고 근거 번호·일지 원문 규칙 포함');
  ok(/\[목표 1 단기목표\]/.test(mp.prompt)&&/월 2회/.test(mp.prompt),'단기목표 칸에 측정 기준 전달');
  ok(!/\[가족 욕구\]/.test(mp.prompt)||/가족관계/.test(mp.prompt),'가족 기록이 있을 때만 가족 욕구 칸');
  // 가짜 답
