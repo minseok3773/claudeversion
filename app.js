@@ -990,12 +990,22 @@ function proCats(m){return psyCategories(m?.psychiatricConditions).filter(c=>c!=
 function proWebKey(topics,cats){return topics.map(t=>t.id).sort().join(',')+'|'+[...cats].sort().join(',')}
 function proWebState(key){const h=proWeb.get(key);return h&&Date.now()-h.at<(h.ok?6*60*60*1000:10*60*1000)?h:null}
 const proDay=v=>{const d=new Date(v||Date.now());return isNaN(d)?'':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+// v3.26.2: 자료 검색이 오래 걸리면 진행 막대가 1%에 멈춘 것처럼 보였다(최대 58초, 남은 시간 표시 없음).
+// 기다리는 시간을 25초로 줄이고, 지난 시간과 ‘건너뛰고 바로 작성’ 단추를 보여 준다. 건너뛰면 내장 자료로 계속 쓴다.
+const PRO_WEB_WAIT=25000;let proWebCtl=null,proWebSkipped=false;
+const PRO_SKIP_HTML='<button type="button" class="btn small ai-keep pro-skip" style="margin:8px 8px 0 0">자료 검색 건너뛰고 바로 작성</button>';
+function proWebSkipButton(on){document.querySelectorAll('.pro-skip').forEach(x=>x.remove());if(!on)return;const box=$('#aiProgress');if(box)box.insertAdjacentHTML('beforeend',PRO_SKIP_HTML)}
+document.addEventListener('click',ev=>{if(!ev.target.closest?.('.pro-skip'))return;proWebSkipped=true;try{proWebCtl?.abort()}catch{}proWebSkipButton(false)});
+function proWebWaiting(){const t0=Date.now();const msg='최신 전문자료를 찾는 중입니다… (회원 정보는 보내지 않고 증상·주제 이름만 씁니다)';
+ const tick=()=>{const sec=Math.round((Date.now()-t0)/1000);setAIProgress(`${msg} ${sec}초 / 최대 ${PRO_WEB_WAIT/1000}초`,Math.min(4,1+sec/8));if(!document.querySelector('.pro-skip'))proWebSkipButton(true)};
+ tick();const iv=setInterval(tick,1000);return()=>{clearInterval(iv);proWebSkipButton(false)}}
 async function proWebSearch(m,topics,{force=false,onStart}={}){const cats=proReady()?proCats(m):[];if(!proReady()||!topics.length&&!cats.length)return null;const key=proWebKey(topics,cats);
  if(!force){const h=proWebState(key);if(h)return h}
  if(proWebInflight.has(key))return proWebInflight.get(key);
  const run=(async()=>{let out;
-  try{await ensureInstitutionSession();const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),58000);
-   try{const r=await fetch('/api/research',{method:'POST',credentials:'same-origin',cache:'no-store',signal:ctl.signal,headers:{'content-type':'application/json','x-requested-with':'rehab-app'},body:JSON.stringify({topics:topics.map(t=>t.id),categories:cats,force:force===true})});
+  try{await ensureInstitutionSession();const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),PRO_WEB_WAIT);proWebCtl=ctl;
+   const aborted=new Promise((_,rej)=>ctl.signal.addEventListener('abort',()=>{const e=Error('aborted');e.name='AbortError';rej(e)},{once:true}));aborted.catch(()=>{});
+   try{const r=await Promise.race([fetch('/api/research',{method:'POST',credentials:'same-origin',cache:'no-store',signal:ctl.signal,headers:{'content-type':'application/json','x-requested-with':'rehab-app'},body:JSON.stringify({topics:topics.map(t=>t.id),categories:cats,force:force===true})}),aborted]);
     const d=await r.json().catch(()=>null);
     if(r.ok&&d?.searched===true&&clean(d.text))out={ok:true,text:str(d.text).slice(0,3200),queries:(Array.isArray(d.queries)?d.queries:[]).map(str).filter(Boolean).slice(0,8),
      sources:(Array.isArray(d.sources)?d.sources:[]).filter(s=>/^https:\/\/[^\s"'<>]+$/i.test(str(s?.uri))).map(s=>({title:str(s.title).slice(0,200)||'출처',uri:str(s.uri)})).slice(0,12),suggestions:d.provider==='scholarly'?'':str(d.suggestions).slice(0,40000),model:str(d.model).slice(0,60),when:str(d.at),
@@ -1003,8 +1013,9 @@ async function proWebSearch(m,topics,{force=false,onStart}={}){const cats=proRea
     else out={ok:false,why:str(d?.why)||'other',message:d?.searched===false&&clean(d.message)?str(d.message).slice(0,360):(typeof d?.error==='string'&&/[가-힣]/.test(d.error)?d.error.slice(0,300):`자료 검색을 하지 못했습니다(서버 응답 ${r.status}).`)}}
    finally{clearTimeout(timer)}}
   catch(e){const msg=String(e?.message||''),cancel=msg===CANCEL_MSG;
-   out={ok:false,why:e?.name==='AbortError'?'timeout':'network',noCache:cancel,message:e?.name==='AbortError'?'자료 검색 응답이 너무 늦어 기다리지 않았습니다.':cancel?'기관 접속 확인을 취소해 검색하지 않았습니다.':/[가-힣]/.test(msg)?msg.slice(0,300):'자료 검색 서버에 연결하지 못했습니다.'}}
-  out.at=Date.now();if(!out.noCache)proWeb.set(key,out);return out})();
+   const skipped=e?.name==='AbortError'&&proWebSkipped;
+   out={ok:false,why:e?.name==='AbortError'?'timeout':'network',noCache:cancel||skipped,message:skipped?'자료 검색을 건너뛰었습니다.':e?.name==='AbortError'?'자료 검색 응답이 너무 늦어 기다리지 않았습니다.':cancel?'기관 접속 확인을 취소해 검색하지 않았습니다.':/[가-힣]/.test(msg)?msg.slice(0,300):'자료 검색 서버에 연결하지 못했습니다.'}}
+  proWebCtl=null;out.at=Date.now();if(!out.noCache)proWeb.set(key,out);return out})();
  proWebInflight.set(key,run);proWebBusy=key;try{onStart?.()}catch{}
  try{return await run}finally{proWebInflight.delete(key);if(proWebBusy===key)proWebBusy=''}}
 // 문서마다 자료를 쓰는 법을 다르게 준다(계획서: 개입 방법·성과 기준, 평가서: 판단 기준·다음 계획, 주치의편지: 개입 정리·협력).
@@ -1032,7 +1043,8 @@ async function proEvidence(sentences,{m=member()}={}){proMeta='';const topics=pr
    try{const r=await fetch('/api/clinical-guidance',{method:'POST',credentials:'same-origin',cache:'no-store',signal:ctl.signal,headers:{'content-type':'application/json','x-requested-with':'rehab-app'},body:JSON.stringify({categories:[],topics:topics.map(t=>t.id)})});
     if(r.ok){const d=await r.json();for(const x of Array.isArray(d?.topicSources)?d.topicSources:[])if(ProKnowledge.SOURCES[x?.key])proCache.set(x.key,{at:Date.now(),checkedOnline:x.checkedOnline===true,overview:str(x.overview)})}}finally{clearTimeout(timer)}}catch{}})():null;
  const webOn=state.webSearch===true; // v3.21.66: 최신 전문자료 찾기(구글 검색, 안 되면 무료 공개 논문 검색) — 기본 켬
- const [,web]=await Promise.all([official,!webOn?null:proWebSearch(m,topics,{onStart:()=>{setAIProgress('최신 전문자료를 찾는 중입니다… (회원 정보는 보내지 않고 증상·주제 이름만 씁니다)',1);if(!aiWorking&&(state.view==='ai'||state.view==='doctor'))paint()}})]);
+ proWebSkipped=false;let stopWait=null;
+ const [,web]=await Promise.all([official,!webOn?null:proWebSearch(m,topics,{onStart:()=>{if(!aiWorking&&(state.view==='ai'||state.view==='doctor'))paint();stopWait=proWebWaiting()}}).finally(()=>{stopWait?.()})]);
  const live=keys.filter(k=>proSourceState(k)?.checkedOnline).length;
  const local=topics.length?`전문자료 ${topics.length}개 주제 참고(${topics.map(t=>t.name).slice(0,3).join(', ')}${topics.length>3?' 등':''} · 공식 페이지 확인 ${live}/${keys.length}곳, 회원 정보 전송 없음)`:'';
  proMeta=web?.ok&&web.provider==='scholarly'?`공개 논문 검색으로 최신 논문 ${web.sources.length}건 참고(구글 검색 대신)${local?' · '+local:''}`
@@ -3686,7 +3698,7 @@ function collectEvidence(m,stage,budget){
  const sel=noteSelection(m);let items=sel.used;const total=items.length;
  // v3.22.0: Claude(claude.ai)로 쓸 때는 입력 한도가 넉넉하므로 체크한 상담일지를 고르거나 자르지 않고 전문을 넣는다.
  // v3.23.4: Gemini도 체크한 상담일지 전문이 입력 한도 안에 들어가면 줄을 고르거나 자르지 않고 전문을 넣는다(넘칠 때만 줄임).
- {const text=items.map(({n,i})=>`[기록 ${i+1} / ${n.date||'날짜 미상'} / ${n.title||'주제 미상'}]\n${clean(n.body)}`).join('\n\n');if(aiEngine==='claude'||claudeBatch||text.length<=budget)return{text,used:items.length,total,outside:sel.outside.length,dropped:0,trunc:0}}const MIN=140;let dropped=0;
+ {const text=items.map(({n,i})=>`[기록 ${i+1} / ${n.date||'날짜 미상'} / ${n.title||n.topic||'주제 미상'}]\n${clean(n.body)}`).join('\n\n');if(aiEngine==='claude'||claudeBatch||text.length<=budget)return{text,used:items.length,total,outside:sel.outside.length,dropped:0,trunc:0}}const MIN=140;let dropped=0;
  const maxN=Math.max(1,Math.floor(budget/MIN));if(items.length>maxN){dropped=items.length-maxN;items=items.slice(-maxN)}
  const stageTerms={assessment:/망상|환청|우울|가족|부모|생활|호소|희망|자립|수면|건강|검사|진료|관계|상담|스트레스|병식|증상|활동|복약|약물|입원|상태/i,goals:/문제|어려움|증상|검사|진료|목표|계획|참여|활동|운동|퇴소|자립|안전|건강|무기력|수면|행동|관리|개입/i,evaluation:/실시|참여|수행|변화|증가|감소|유지|중단|재개|달성|평가|점수|점검|상담|진료|입원|처방|예정|계획|결과|성과|검사/i};
  const per=Math.floor(budget/Math.max(1,items.length));let trunc=0;
@@ -3752,7 +3764,7 @@ async function aiCallConn(c,system,prompt,maxTokens,{json=true}={}){
 const CLAUDE_URL='https://claude.ai/new';
 let claudeStepNo=0,claudeStepRun=-1;
 function claudePromptText(system,prompt,{json=true}={}){
- return `아래는 정신재활시설 재활계획서·재활평가서 작성 프로그램이 보내는 요청입니다. 20년차 정신건강사회복지사의 관점으로 [작성 지침]을 지키며 [요청]에 답하십시오.
+ return `아래는 정신재활시설 재활계획서·재활평가서 작성 프로그램이 보내는 요청입니다. 20년차 정신건강사회복지사의 관점으로 [작성 지침]을 지키며 [요청]에 답하십시오.${/===== \[상담일지 전문\] =====/.test(prompt)?' 모든 내용의 근거는 [요청] 맨 앞의 [상담일지 전문]입니다.':''}
 
 [작성 지침]
 ${system}
@@ -4508,7 +4520,7 @@ function addReviewNotes(list,res){const a=isObj(res)?res.reviewNotes:null;const 
  for(const x of arr){const t=clean(typeof x==='string'?x:isObj(x)?(x.note||x.text||''):'').replace(/^[-•▪∎]\s*/,'');if(t&&!/^(?:없음|해당\s*사항\s*없음)\.?$/.test(t)&&!list.includes(t)&&list.length<40)list.push(t)}return list}
 // v3.23.0: 한 번에 보낼 때 ① 앞 단계와 똑같은 긴 안내(기간·기능 수준·전문자료·실천모델)는 한 번만 싣고,
 // ② 각 단계의 마지막 점검은 상담일지 전문 ‘뒤’로 옮기며(긴 자료 앞의 지시는 잊기 쉬움), ③ 앞 단계 답 자리표시는 말로 바꾼다.
-const CLAUDE_EV_MARK='(맨 아래 [상담일지 전문]을 그대로 근거로 씀)';
+const CLAUDE_EV_MARK='(맨 위 [상담일지 전문]을 그대로 근거로 씀)';
 function claudeBatchTidy(steps,evText){const seen=new Map();
  // v3.24.0: 전문자료 묶음은 줄 중복 줄이기보다 먼저 한 단계에만 남긴다(전에는 순서가 거꾸로라 두 단계가 서로를 가리키기만 하고 본문이 사라졌음).
  const pre=steps.map(s=>{let p=String(s.prompt||'');if(evText)p=p.split(evText).join(CLAUDE_EV_MARK);
@@ -4537,6 +4549,11 @@ function claudeBatchTidy(steps,evText){const seen=new Map();
   return {...s,body:p,tail,schema}});
  // v3.24.0: 문장 단위 중복 지우기는 없앰(줄 중간 문장을 지워 머리말이 잘리고 번호만 남았음).
  return out}
+const CLAUDE_EV_FIRST=`===== [가장 먼저 지킬 원칙] =====
+① 모든 칸은 위 [상담일지 전문]에 적힌 사실에서 나와야 한다. 아래 작성 지침·실천모델·회원 기능 수준·전문자료·형식 예는 쓰는 방법일 뿐 이 회원의 사실이 아니다.
+② 상담일지에 기록되지 않은 문제를 전문자료나 형식 예 때문에 욕구·목표로 만들지 않는다.
+③ 회원·가족이 상담일지에서 직접 말한 바람과 어려움(하고 싶은 활동, 가족과의 갈등 등)은 욕구에서 빠뜨리지 않고, 재활에 필요한 것은 목표와 이어지게 한다.
+④ 목표끼리 같은 행동·같은 영역을 겹쳐 잡지 않는다.`;
 function claudeBatchPrompt(steps,evText){
  const nameOf={assess:'욕구·강점·약점·심리사회 평가',goals:'재활목표·단기목표·재활계획·성과목표',eval:'재활평가'};
  const tidy=claudeBatchTidy(steps,evText);
@@ -4553,7 +4570,9 @@ function claudeBatchPrompt(steps,evText){
  const slim=x=>String(x||'').replace(/"longRevise":"","longReason":"",/,'');
  const keys=tidy.map((s,i)=>`"step${i+1}": ${slim(s.schema)||`{ step${i+1}에서 요구한 JSON 객체 }`}`).join(',\n  ');
  const optNote=tidy.some(s=>/"longRevise"/.test(s.schema))?'\n기존 장기목표가 지금 상황과 맞지 않을 때만 그 목표에 "longRevise"(고친 장기목표)와 "longReason"(이유)을 더한다. 내용이 없는 칸은 "" 또는 []로 둔다.':'\n내용이 없는 칸은 "" 또는 []로 둔다.';
- return {prompt:`이 요청은 정신재활시설 회원 1명의 문서를 ${steps.length}단계로 나누어 한 번에 작성합니다. step1부터 차례로, 앞 단계에서 쓴 내용을 이어받아 작성하십시오. 상담일지는 맨 아래 [상담일지 전문]에 한 번만 붙였습니다.\n\n${body}\n\n===== [상담일지 전문] =====\n${evText||'(각 단계에 포함)'}\n\n${tails?`===== [상담일지를 다 읽은 뒤 단계별 마지막 점검] =====\n${tails}\n\n`:''}[이번 답의 전체 형식]\n각 단계의 답을 아래 틀 그대로 하나의 JSON 객체로 묶으십시오. 배열에는 필요한 만큼 항목을 넣습니다.\n{\n  ${keys}\n}${optNote}`}}
+ // v3.26.2: 상담일지를 요청문 맨 위로 올린다. 전에는 2만 자가 넘는 작성 규칙·전문자료·실천모델 뒤 맨 끝(전체의 3~10%)에 붙어 있어,
+ // 받는 쪽에서 상담일지가 아니라 일반 지침 요청처럼 읽히고 전문자료에 나온 문제(예: 금전·예산)가 목표로 들어갔다.
+ return {prompt:`이 요청은 정신재활시설 회원 1명의 상담일지를 읽고 문서를 ${steps.length}단계로 나누어 한 번에 작성합니다. 먼저 바로 아래 [상담일지 전문]을 끝까지 읽으십시오. 그다음 step1부터 차례로, 앞 단계에서 쓴 내용을 이어받아 작성하십시오.\n\n===== [상담일지 전문] =====\n${evText||'(각 단계에 포함)'}\n\n${CLAUDE_EV_FIRST}\n\n${body}\n\n${tails?`===== [상담일지를 다 읽은 뒤 단계별 마지막 점검] =====\n${tails}\n\n`:''}[이번 답의 전체 형식]\n각 단계의 답을 아래 틀 그대로 하나의 JSON 객체로 묶으십시오. 배열에는 필요한 만큼 항목을 넣습니다.\n{\n  ${keys}\n}${optNote}`}}
 // v3.23.8: Gemini도 Claude와 똑같은 요청문 하나를 서버로 보내고, 받은 답을 같은 과정으로 칸에 넣는다.
 const GEMINI_BATCH_SYS='정신재활시설 재활계획서·재활평가서 작성 프로그램의 요청입니다. 요청문의 [작성 지침]과 [답변 형식]을 지키고, 요청문 맨 아래 [이번 답의 전체 형식]대로 JSON 객체 하나로만 답하십시오.';
 const GEMINI_BATCH_OUT=65536;
